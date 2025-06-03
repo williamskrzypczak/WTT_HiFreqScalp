@@ -1,0 +1,485 @@
+// =====================================================================================================================
+//
+// WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
+// Revision: v1.0
+//
+// =====================================================================================================================
+
+// This Pine Script code implements a high-frequency scalp trading indicator for TradingView called "WTT_HiFreqScalp." -
+// It calculates multiple Exponential Moving Averages (EMAs) with configurable lengths to identify trend direction and -
+// potential trade signals. The script generates long and short signals based on crossovers between a "Super Fast" EMA -
+// and a "Middle" EMA (the average of fast and slow EMAs), and visually marks these signals on the chart with shapes ---
+// and colored lines. It also computes the Relative Strength Index (RSI) and Average Directional Index (ADX) to assess -
+// overbought/oversold conditions and trend strength, displaying their values and interpretations in a customizable ----
+// on-chart table. The indicator dynamically colors the price line according to EMA relationships (bullish, bearish, or 
+// neutral), and provides alert conditions for trade signals, overbought/oversold events, and color transitions, -------
+// enabling automated alerting for traders. User options allow toggling the display of individual EMAs and the RSI/ADX -
+// monitor table for a tailored charting experience. -------------------------------------------------------------------
+
+
+//@version=5
+
+indicator("WTT_HiFreqScalp", overlay=true)
+
+// ======================================== INPUT GROUPS ===============================================================
+// Organizing inputs into logical groups for better UI experience ------------------------------------------------------
+var GROUP_TRADING_STYLE = "Trading Style Presets"
+var GROUP_EMA = "Exponential Moving Average Settings"
+var GROUP_VOLUME = "Volume Filter Settings"
+var GROUP_DISPLAY = "Display Preferences"
+var GROUP_RSI_ADX = "RSI & ADX Monitor Settings"
+var GROUP_ALERT_TIME = "Alert Time Settings"
+
+// ==================================== TRADING STYLE PRESETS ==========================================================
+// Trading style selection with optimized parameters -------------------------------------------------------------------
+trading_style = input.string("Scalping", title="Trading Style", options=["Scalping", "Day Trading", "Swing Trading", "Custom"], group=GROUP_TRADING_STYLE)
+
+// ======================================== EMA SETTINGS ===============================================================
+// EMA parameters for trend identification - dynamically set based on trading style ------------------------------------
+ema1_length = trading_style == "Scalping" ? 21 : trading_style == "Day Trading" ? 21 : trading_style == "Swing Trading" ? 50 : input.int(50, title="Fast EMA Length", group=GROUP_EMA)
+ema2_length = trading_style == "Scalping" ? 50 : trading_style == "Day Trading" ? 50 : trading_style == "Swing Trading" ? 200 : input.int(200, title="Slow EMA Length", group=GROUP_EMA)
+ema3_length = trading_style == "Scalping" ? 8 : trading_style == "Day Trading" ? 9 : trading_style == "Swing Trading" ? 20 : input.int(9, title="Super Fast EMA Length", group=GROUP_EMA)
+
+// =================================== VOLUME FILTER SETTINGS ==========================================================
+// Volume parameters for signal filtering - dynamically set based on trading style -------------------------------------
+use_volume_filter = input.bool(true, title="Enable Volume Filter", group=GROUP_VOLUME)
+volume_ma_length = trading_style == "Scalping" ? 20 : trading_style == "Day Trading" ? 20 : trading_style == "Swing Trading" ? 30 : input.int(20, title="Volume MA Length", minval=1, group=GROUP_VOLUME)
+volume_multiplier = trading_style == "Scalping" ? 2.0 : trading_style == "Day Trading" ? 1.5 : trading_style == "Swing Trading" ? 1.3 : input.float(1.5, title="Volume Multiplier", minval=0.1, step=0.1, group=GROUP_VOLUME)
+
+// ====================================== DISPLAY OPTIONS =============================================================
+// Toggle visibility of various EMAs on the chart ----------------------------------------------------------------------
+showSuperFastEMA = input.bool(false, title="Show Super Fast EMA", group=GROUP_DISPLAY)
+showFastEMA = input.bool(false, title="Show Fast EMA", group=GROUP_DISPLAY)
+showMiddleEMA = input.bool(false, title="Show Middle EMA", group=GROUP_DISPLAY)
+showSlowEMA = input.bool(false, title="Show Slow EMA", group=GROUP_DISPLAY)
+
+// ================================= RSI & ADX MONITOR SETTINGS =======================================================
+// Parameters for RSI and ADX calculations and display - dynamically set based on trading style ------------------------
+rsi_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : trading_style == "Swing Trading" ? 21 : input.int(14, title="RSI Length", minval=1, group=GROUP_RSI_ADX)
+adx_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : trading_style == "Swing Trading" ? 21 : input.int(14, title="ADX Length", minval=1, group=GROUP_RSI_ADX)
+rsi_overbought = trading_style == "Scalping" ? 75 : trading_style == "Day Trading" ? 70 : trading_style == "Swing Trading" ? 65 : input.int(70, title="RSI Overbought", minval=50, maxval=100, group=GROUP_RSI_ADX)
+rsi_oversold = trading_style == "Scalping" ? 25 : trading_style == "Day Trading" ? 30 : trading_style == "Swing Trading" ? 35 : input.int(30, title="RSI Oversold", minval=0, maxval=50, group=GROUP_RSI_ADX)
+adx_threshold = trading_style == "Scalping" ? 25 : trading_style == "Day Trading" ? 30 : trading_style == "Swing Trading" ? 25 : input.int(40, title="ADX Threshold", minval=10, maxval=50, group=GROUP_RSI_ADX)
+show_table = input.bool(true, title="Show RSI & ADX Monitor", group=GROUP_RSI_ADX)
+table_position = input.string("bottom_right", title="Table Position", options=["top_right", "top_left", "bottom_right", "bottom_left"], group=GROUP_RSI_ADX)
+
+// ==================================== ALERT TIME SETTINGS ============================================================
+// Time-based alert filtering for CST (UTC-6) with Sydney-Tokyo overlap ------------------------------------------------
+use_time_filter = input.bool(true, title="Enable Time-Based Alert Filter", group=GROUP_ALERT_TIME)
+start_hour = input.int(7, title="Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+end_hour = input.int(11, title="End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
+sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+sydney_end_hour = input.int(2, title="Sydney-Tokyo End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+
+// ===================================== MAIN CALCULATIONS =============================================================
+
+// Calculate primary indicators ----------------------------------------------------------------------------------------
+ema3 = ta.ema(close, ema3_length)           // SuperFast EMA -----------------------------------------------------------
+ema1 = ta.ema(close, ema1_length)           // Fast EMA ----------------------------------------------------------------
+ema2 = ta.ema(close, ema2_length)           // Slow EMA ----------------------------------------------------------------
+middleEMA = (ema1 + ema2) / 2               // Middle EMA (average of fast and slow) -----------------------------------
+
+// Calculate volume moving average for the volume filter ---------------------------------------------------------------
+volume_ma = ta.sma(volume, volume_ma_length)
+
+// Calculate RSI for overbought/oversold detection ---------------------------------------------------------------------
+rsi_value = ta.rsi(close, rsi_length)
+
+// Calculate ADX components for trend strength assessment --------------------------------------------------------------
+// First calculate the directional movement ----------------------------------------------------------------------------
+dip = ta.change(low)                        // Plus Directional Movement (raw) -----------------------------------------
+dim = ta.change(high)                       // Minus Directional Movement (raw) ----------------------------------------
+plus_dm = dip > 0 and dip > dim ? dip : 0   // Final Plus DM -----------------------------------------------------------
+minus_dm = dim < 0 and math.abs(dim) > dip ? math.abs(dim) : 0  // Final Minus DM --------------------------------------
+
+// Calculate True Range and Directional Indicators ---------------------------------------------------------------------
+tr = ta.tr
+plus_di = 100 * ta.ema(plus_dm, adx_length) / ta.ema(tr, adx_length)    // +DI -----------------------------------------
+minus_di = 100 * ta.ema(minus_dm, adx_length) / ta.ema(tr, adx_length)  // -DI -----------------------------------------
+
+// Calculate ADX value (strength of the trend) -------------------------------------------------------------------------
+dx = 100 * math.abs(plus_di - minus_di) / (plus_di + minus_di)
+adx_value = ta.ema(dx, adx_length)
+
+// ========================================== FUNCTIONS ===============================================================
+
+// Determines price line color based on EMA relationships --------------------------------------------------------------
+// Changes color to reflect bullish, bearish, or neutral conditions ----------------------------------------------------
+determine_price_line_color(price, fast_ema, slow_ema, middle_ema) =>
+    var color defaultPriceColor = color.white
+    
+    if price > fast_ema and price > slow_ema
+        #26ba9f         // Bullish - price above both EMAs -----------------------------------------------------------
+    else if price < fast_ema and price < slow_ema
+        #6626ba         // Bearish - price below both EMAs -----------------------------------------------------------
+    else if ta.crossover(fast_ema, slow_ema)
+        #26ba9f         // Bullish crossover signal ------------------------------------------------------------------
+    else if ta.crossunder(fast_ema, slow_ema)
+        #6626ba         // Bearish crossunder signal -----------------------------------------------------------------
+    else if ta.cross(price, middle_ema)
+        color.white     // Price crossing the middle EMA - potential reversal ----------------------------------------
+    else
+        defaultPriceColor  // Default color when no specific condition is met -----------------------------------------
+
+// Enhanced signal logic with trend direction filter -------------------------------------------------------------------
+is_trend_aligned_long() =>
+    if trading_style == "Scalping"
+        plus_di > minus_di  // Require trend alignment for scalping ----------------------------------------------------
+    else if trading_style == "Day Trading"
+        true  // More flexible for day trading -------------------------------------------------------------------------
+    else
+        true  // Swing trading - trend alignment helpful but not required ----------------------------------------------
+
+is_trend_aligned_short() =>
+    if trading_style == "Scalping"
+        minus_di > plus_di  // Require trend alignment for scalping ----------------------------------------------------
+    else if trading_style == "Day Trading"
+        true  // More flexible for day trading -------------------------------------------------------------------------
+    else
+        true  // Swing trading - trend alignment helpful but not required ----------------------------------------------
+
+// Enhanced ADX filter based on trading style --------------------------------------------------------------------------
+is_adx_favorable() =>
+    if trading_style == "Scalping"
+        adx_value > adx_threshold  // Require strong trend for scalping ------------------------------------------------
+    else if trading_style == "Day Trading"
+        adx_value > (adx_threshold * 0.75)  // Slightly more flexible --------------------------------------------------
+    else
+        adx_value > (adx_threshold * 0.6)  // Most flexible for swing trading ------------------------------------------
+
+// Function to calculate color brightness (0-255) ----------------------------------------------------------------------
+get_color_brightness(r, g, b) =>
+    // Using perceived brightness formula: (0.299*R + 0.587*G + 0.114*B)
+    math.round(0.299 * r + 0.587 * g + 0.114 * b)
+
+// Creates a color gradient from green to lime to orange to red based on a value
+// Used for RSI visualization
+get_gradient_color(value, min_value, max_value) =>
+    // Normalize value to 0-1 range
+    normalized = math.max(0, math.min(1, (value - min_value) / (max_value - min_value)))
+    
+    // Four-color gradient: green -> lime -> orange -> red
+    var int r = 0
+    var int g = 0
+    var int b = 0
+    
+    if normalized <= 0.33
+        // Green to Lime (0-33%)
+        r := math.round(normalized * 3 * 50)  // 0 to 50
+        g := math.round(255)                  // Stay at 255
+        b := 0                                // Stay at 0
+    else if normalized <= 0.66
+        // Lime to Orange (33-66%)
+        r := math.round(50 + (normalized - 0.33) * 3 * 205)  // 50 to 255
+        g := math.round(255 - (normalized - 0.33) * 3 * 90)  // 255 to 165
+        b := 0                                               // Stay at 0
+    else
+        // Orange to Red (66-100%)
+        r := math.round(255)                                 // Stay at 255
+        g := math.round(165 - (normalized - 0.66) * 3 * 165)  // 165 to 0
+        b := 0                                                // Stay at 0
+    
+    color.rgb(r, g, b)
+
+// Creates a color gradient from light gray to dark orange based on a value
+// Used for ADX visualization
+get_adx_gradient_color(value, min_value, max_value) =>
+    // Normalize value to 0-1 range
+    normalized = math.max(0, math.min(1, (value - min_value) / (max_value - min_value)))
+    
+    // Transition from light gray to dark orange
+    r = math.round(220 + (normalized * 35))  // 220 to 255
+    g = math.round(220 - (normalized * 100))  // 220 to 120
+    b = math.round(220 - (normalized * 220))  // 220 to 0
+    
+    color.rgb(r, g, b)
+
+// Creates a color gradient from white to blood orange based on volume ratio
+// Used for volume visualization in the table
+get_volume_gradient_color(current_vol, volume_ma, volume_multiplier) =>
+    // Calculate the volume ratio (current volume / average volume)
+    volume_ratio = current_vol / volume_ma
+    
+    // Define thresholds for color transitions
+    low_threshold = 0.5        // Below this = white
+    high_threshold = volume_multiplier  // At/above this = blood orange
+    
+    if volume_ratio <= low_threshold
+        // Low volume: white
+        color.rgb(255, 255, 255)
+    else if volume_ratio <= high_threshold
+        // Transition from white to blood orange
+        normalized = (volume_ratio - low_threshold) / (high_threshold - low_threshold)
+        r = math.round(255)  // Stay at 255
+        g = math.round(255 - (normalized * 100))  // 255 to 155
+        b = math.round(255 - (normalized * 255))  // 255 to 0
+        color.rgb(r, g, b)
+    else
+        // High volume: blood orange
+        color.rgb(255, 155, 0)
+
+// Function to detect unusually high volume ----------------------------------------------------------------------------
+is_high_volume() =>
+    if not use_volume_filter
+        true
+    else
+        volume_ma = ta.sma(volume, volume_ma_length)
+        current_volume = volume
+        current_volume > (volume_ma * volume_multiplier)
+
+// ================================== TIME FILTER FUNCTION =============================================================
+// Function to check if current time is within alert time window -------------------------------------------------------
+// Includes both regular trading hours and Sydney-Tokyo overlap --------------------------------------------------------
+is_within_alert_time() =>
+    if not use_time_filter
+        true
+    else
+        // Get the current hour in the exchange's timezone -------------------------------------------------------------
+        current_hour = hour(time)
+        
+        // Check regular trading hours (e.g., 7 AM - 11 AM CST) --------------------------------------------------------
+        regular_hours = current_hour >= start_hour and current_hour < end_hour
+        
+        // Check Sydney-Tokyo overlap if enabled -----------------------------------------------------------------------
+        sydney_tokyo_hours = false
+        if enable_sydney_tokyo
+            // Handle overnight session (e.g., 7 PM - 2 AM CST) --------------------------------------------------------
+            if sydney_start_hour > sydney_end_hour
+                // Crosses midnight: 19:00 - 23:59 OR 00:00 - 02:00 ----------------------------------------------------
+                sydney_tokyo_hours := current_hour >= sydney_start_hour or current_hour < sydney_end_hour
+            else
+                // Same day: start_hour <= current_hour < end_hour -----------------------------------------------------
+                sydney_tokyo_hours := current_hour >= sydney_start_hour and current_hour < sydney_end_hour
+        
+        // Return true if either time window is active -----------------------------------------------------------------
+        regular_hours or sydney_tokyo_hours
+
+// ===================================== SIGNAL GENERATION =============================================================
+
+// Primary trading signals ---------------------------------------------------------------------------------------------
+longSignal = ta.crossover(ema3, middleEMA)                               // Fast EMA crosses above slow EMA ------------
+shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast EMA crosses below slow EMA ------------
+
+// Middle EMA crossover signals ----------------------------------------------------------------------------------------
+closeCrossAboveMiddleEMA = ta.crossover(close, middleEMA)               // Close crosses above middle EMA -------------
+closeCrossBelowMiddleEMA = ta.crossunder(close, middleEMA)              // Close crosses below middle EMA -------------
+
+// Apply time filter to all signals -----------------------------------------------------------------------------------
+timeFilteredLongSignal = longSignal and is_high_volume() and is_trend_aligned_long() and is_adx_favorable() and is_within_alert_time()
+timeFilteredShortSignal = shortSignal and is_high_volume() and is_trend_aligned_short() and is_adx_favorable() and is_within_alert_time()
+timeFilteredCloseCrossAboveMiddleEMA = closeCrossAboveMiddleEMA and is_within_alert_time()
+timeFilteredCloseCrossBelowMiddleEMA = closeCrossBelowMiddleEMA and is_within_alert_time()
+
+// Overbought/Oversold conditions --------------------------------------------------------------------------------------
+isOverbought = rsi_value > rsi_overbought
+isOversold = rsi_value < rsi_oversold
+rsiOverboughtAlert = isOverbought[1] and ta.crossunder(rsi_value, rsi_overbought)
+rsiOversoldAlert = isOversold[1] and ta.crossover(rsi_value, rsi_oversold)
+
+// Apply time filter to RSI alerts -------------------------------------------------------------------------------------
+timeFilteredRsiOverboughtAlert = rsiOverboughtAlert and is_within_alert_time()
+timeFilteredRsiOversoldAlert = rsiOversoldAlert and is_within_alert_time()
+
+// ================================== ALERT STATUS TRACKING ============================================================
+// Create persistent variables to track the last triggered alert and its bar index -------------------------------------
+var string lastAlertType = "None"
+var int lastAlertBarIndex = 0
+
+// Update alert status based on conditions - track all signal types ---------------------------------------------------
+if timeFilteredLongSignal
+    lastAlertType := "SYZ_LONG"
+    lastAlertBarIndex := bar_index
+else if timeFilteredShortSignal
+    lastAlertType := "SYZ_SHORT"
+    lastAlertBarIndex := bar_index
+else if timeFilteredCloseCrossAboveMiddleEMA
+    lastAlertType := "TPIV_LONG"
+    lastAlertBarIndex := bar_index
+else if timeFilteredCloseCrossBelowMiddleEMA
+    lastAlertType := "TPIV_SHORT"
+    lastAlertBarIndex := bar_index
+
+// Calculate bars since last alert -------------------------------------------------------------------------------------
+barsSinceLastAlert = bar_index == lastAlertBarIndex ? 1 : bar_index - lastAlertBarIndex
+
+// ======================================= VISUALIZATION ===============================================================
+
+// Determine price line color based on technical conditions ------------------------------------------------------------
+priceLineColor = determine_price_line_color(close, ema1, ema2, middleEMA)
+
+// Plot price and middle EMA with the dynamic color --------------------------------------------------------------------
+pricePlot = plot(close, color=color.new(priceLineColor, 0), linewidth=2, title="Price Line", 
+     style=plot.style_line, editable=true, show_last=5000)
+middleEMAPlot = plot(middleEMA, color=color.new(priceLineColor, 0), linewidth=2, 
+     title="Middle EMA Line", style=plot.style_line, editable=true, show_last=5000)
+
+// Fill area between price and middle EMA for visual emphasis ----------------------------------------------------------
+fill(pricePlot, middleEMAPlot, color.new(priceLineColor, 50))
+
+// Plot EMAs conditionally based on user preferences -------------------------------------------------------------------
+plot(showSuperFastEMA ? ema3 : na, color=color.rgb(0, 255, 255), title="Super Fast EMA", linewidth=2)
+plot(showFastEMA ? ema1 : na, color=color.yellow, title="Fast EMA", linewidth=2)
+plot(showMiddleEMA ? middleEMA : na, color=color.silver, title="Middle EMA", linewidth=2)
+plot(showSlowEMA ? ema2 : na, color=color.purple, title="Slow EMA", linewidth=4)
+
+// Plot trading signals ------------------------------------------------------------------------------------------------
+plotshape(series=timeFilteredLongSignal, location=location.bottom, color=color.lime, 
+     style=shape.triangleup, size=size.small, title="Syzygy Long", text="B", textcolor=color.lime)
+plotshape(series=timeFilteredShortSignal, location=location.top, color=color.white, 
+     style=shape.triangledown, size=size.small, title="Syzygy Short", text="S", textcolor=color.white)
+
+// Plot overbought/oversold markers ------------------------------------------------------------------------------------
+plotshape(rsiOverboughtAlert, location=location.abovebar, color=color.lime,
+     style=shape.circle, size=size.tiny, title="Overbought")
+plotshape(rsiOversoldAlert, location=location.belowbar, color=color.silver, 
+     style=shape.circle, size=size.tiny, title="Oversold")
+
+// Draw vertical line at signal points ---------------------------------------------------------------------------------
+if timeFilteredLongSignal
+    line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
+         color=#43b593, width=1, style=line.style_dotted)
+
+if timeFilteredShortSignal
+    line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
+         color=color.gray, width=1, style=line.style_dotted)
+
+
+// ================================== RSI & ADX MONITOR TABLE ==========================================================
+
+if show_table
+    // Create table with position based on user selection --------------------------------------------------------------
+    var table monitor_table = table.new(position = table_position == "top_right" ? 
+     position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
+     position.bottom_left : position.bottom_right, columns = 2, rows = 8, bgcolor = color.rgb(0, 0, 0, 80), 
+     border_width = 1)
+
+    
+    // Header row ------------------------------------------------------------------------------------------------------
+    table.cell(monitor_table, 0, 0, "Indicator", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.small)
+    table.cell(monitor_table, 1, 0, "Value", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.small)
+
+    // Trading Style row -----------------------------------------------------------------------------------------------
+    style_color = trading_style == "Scalping" ? color.maroon : trading_style == "Day Trading" ? color.orange : trading_style == "Swing Trading" ? color.blue : color.gray
+    table.cell(monitor_table, 0, 1, "Style", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 1, trading_style, bgcolor=style_color, text_color=color.white, text_size=size.small)
+    
+    // Trend direction row ---------------------------------------------------------------------------------------------
+    trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
+    table.cell(monitor_table, 0, 2, "Trend D", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 2, trend_direction, bgcolor=trend_direction == "Bullish" ? color.teal : color.red, text_color=color.white, text_size=size.small)
+    
+    // MODIFIED: RSI row with value and appropriate emojis -------------------------------------------------------------
+    rsi_color = get_gradient_color(rsi_value, 0, 100)
+    
+    // Add dollar sign emoji 💲 if RSI is less than oversold or greater than overbought --------------------------------
+    // Add poop emoji 💩 if RSI is between oversold and overbought -----------------------------------------------------
+    string rsi_display = str.tostring(math.round(rsi_value, 2))
+    if rsi_value < rsi_oversold or rsi_value > rsi_overbought
+        rsi_display := rsi_display + " 💰"
+    else if rsi_value > rsi_oversold and rsi_value < rsi_overbought
+        rsi_display := rsi_display + " 💩"
+    
+    // Calculate background color components
+    var int r = 0
+    var int g = 0
+    var int b = 0
+    if rsi_value <= 50
+        // Green to Yellow (0-50%)
+        r := math.round((rsi_value / 50) * 255)
+        g := 255
+        b := 0
+    else
+        // Yellow to Red (50-100%)
+        r := 255
+        g := math.round((1 - (rsi_value - 50) / 50) * 255)
+        b := 0
+    
+    // Determine text color based on background brightness
+    color rsi_text_color = get_color_brightness(r, g, b) > 128 ? color.black : color.white
+    
+    table.cell(monitor_table, 0, 3, "RSI", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 3, rsi_display, bgcolor=rsi_color, text_color=rsi_text_color, text_size=size.small)
+
+    // ADX row with value and interpretation ---------------------------------------------------------------------------
+    adx_signal = adx_value >= adx_threshold ? "Strong Trend" : "Weak Trend"
+    adx_color = get_adx_gradient_color(adx_value, 0, 50)
+    
+    table.cell(monitor_table, 0, 4, "ADX", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 4, " " + adx_signal, bgcolor=adx_color, text_color=color.black, text_size=size.small)
+    
+    // Volume filter status row with gradient color
+    volume_ratio = volume / volume_ma
+    volume_gradient_color = get_volume_gradient_color(volume, volume_ma, volume_multiplier)
+    
+    // Create more descriptive volume status text
+    volume_status = if volume_ratio <= 0.5
+        "Low 📉"
+    else if volume_ratio <= 1.0
+        "Normal 📊"
+    else if volume_ratio <= volume_multiplier
+        "Above Avg 📈"
+    else
+        "High 🚀"
+    
+    table.cell(monitor_table, 0, 5, "Volume", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 5, volume_status, bgcolor=volume_gradient_color, text_color=color.black, text_size=size.small)  
+    
+    // Time filter status row ------------------------------------------------------------------------------------------
+    time_filter_status = is_within_alert_time() ? "Active ✅" : "Inactive ❌"
+    table.cell(monitor_table, 0, 6, "Alert Status", text_color=color.white, text_size=size.small, bgcolor = color.black)
+    table.cell(monitor_table, 1, 6, time_filter_status, bgcolor=is_within_alert_time() ? color.green : color.red, text_color=color.white, text_size=size.small)
+
+    // Last Alert Status row - Updated for all signal types -----------------------------------------------------------
+    // Define colors for different alert types -------------------------------------------------------------------------
+    color alert_color = switch lastAlertType
+        "SYZ_LONG" => color.green
+        "SYZ_SHORT" => color.red
+        "TPIV_LONG" => color.teal 
+        "TPIV_SHORT" => color.maroon
+        => color.gray // Default for "None" --------------------------------------------------------------------------
+    
+    // Add the alert status info with time elapsed ---------------------------------------------------------------------
+    alert_status_message = lastAlertType == "None" ? "No Alerts" : 
+     barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : 
+     lastAlertType + " (" + str.tostring(barsSinceLastAlert) + " bars ago)"
+    table.cell(monitor_table, 0, 7, "Last Alert", text_color=color.white, bgcolor=color.rgb(40, 40, 40), text_size=size.small)
+    table.cell(monitor_table, 1, 7, alert_status_message, text_color=color.white, bgcolor=alert_color, text_size=size.small)
+
+
+// ========================================== ALERTS ===================================================================
+
+// Long and short trading alerts with time filter ----------------------------------------------------------------------
+alertcondition(timeFilteredLongSignal, title="Syzygy Long", message="SYZ_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredShortSignal, title="Syzygy Short", message="SYZ_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredRsiOverboughtAlert, title="Overbought", message="OVERBOUGHT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredRsiOversoldAlert, title="Oversold", message="OVERSOLD \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// ================================= MIDDLE EMA CROSSOVER ALERTS =======================================================
+
+// Create alert conditions for middle EMA crossovers with time filter
+alertcondition(timeFilteredCloseCrossAboveMiddleEMA, title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredCloseCrossBelowMiddleEMA, title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// =================================== TRANSITION ALERTS ===============================================================
+
+// // Track the previous price line color to detect transitions -----------------------------------------------------------
+// var previousPriceLineColor = color.white
+
+// // Determine if the price line color has changed from white to another color -------------------------------------------
+// colorTransition = priceLineColor != color.white and previousPriceLineColor == color.white
+
+// // New alert condition: Detect when price line changes TO white --------------------------------------------------------
+// whiteColorTransition = priceLineColor == color.white and previousPriceLineColor != color.white
+
+// // Update the previous price line color for the next bar ---------------------------------------------------------------
+// previousPriceLineColor := priceLineColor
+
+// // Create the alert condition for color transitions with time filter ---------------------------------------------------
+// alertcondition(colorTransition and is_within_alert_time(), title="Trend Pivot Alert", message="Trend Pivot \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// // Create new alert condition for transitions TO white color with time filter ------------------------------------------
+// alertcondition(whiteColorTransition and is_within_alert_time(), title="White Color Alert",message="Price Line Changed to White")
+
+// // EMAS Crossing -------------------------------------------------------------------------------------------------------
+// alertcondition(ta.cross(close, (ema1 + ema2) / 2 ),title ="EMAs Crossing", message = "EMAs Crossing") 

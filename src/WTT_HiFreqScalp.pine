@@ -459,7 +459,7 @@ if show_table
         "Above Avg 📈"
     else
         "High 🚀"
-    combined_indicators = trend_direction + " " + trend_emoji + " | RSI: " + rsi_display + " | ADX: " + adx_signal + " " + adx_emoji + " | Vol: " + volume_status
+    combined_indicators = trend_direction + " " + trend_emoji + " | ADX: " + adx_signal + " " + adx_emoji + " | Vol: " + volume_status + " | RSI: " + rsi_display
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
     alerts_text_color = indicators_text_color

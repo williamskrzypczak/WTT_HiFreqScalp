@@ -466,8 +466,8 @@ if show_table
     combined_status = setup_message + " | " + alert_status_message
     table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.small, bgcolor=color.black)
     // Set alert background color based on last alert type
-    alert_bgcolor = lastAlertType == "SYZ_SHORT" or lastAlertType == "TPIV_SHORT" ? color.red : lastAlertType == "SYZ_LONG" or lastAlertType == "TPIV_LONG" ? color.green : rsi_gradient_color
-    table.cell(monitor_table, 1, 3, combined_status, text_color=alerts_text_color, bgcolor=alert_bgcolor, text_size=size.small)
+    alert_bgcolor = lastAlertType == "SYZ_SHORT" or lastAlertType == "TPIV_SHORT" ? color.maroon : lastAlertType == "SYZ_LONG" or lastAlertType == "TPIV_LONG" ? color.teal : rsi_gradient_color
+    table.cell(monitor_table, 1, 3, combined_status, text_color=color.white, bgcolor=alert_bgcolor, text_size=size.small)
 
 
 // ========================================== ALERTS ===================================================================

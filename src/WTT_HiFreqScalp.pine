@@ -335,6 +335,14 @@ rsiOversoldAlert = isOversold[1] and ta.crossover(rsi_value, rsi_oversold)
 timeFilteredRsiOverboughtAlert = rsiOverboughtAlert and is_within_alert_time()
 timeFilteredRsiOversoldAlert = rsiOversoldAlert and is_within_alert_time()
 
+// === Potential Reversal Conditions ===
+strict_reversal_long = rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
+strict_reversal_short = rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
+potential_reversal_long = rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
+potential_reversal_short = rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
+
+potential_reversal_signal = strict_reversal_long or strict_reversal_short or potential_reversal_long or potential_reversal_short
+
 // ================================== ALERT STATUS TRACKING ============================================================
 // Create persistent variables to track the last triggered alert and its bar index -------------------------------------
 var string lastAlertType = "None"
@@ -398,6 +406,9 @@ if timeFilteredShortSignal
     line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
          color=color.gray, width=1, style=line.style_dotted)
 
+// Plot a yellow dot below the price for long reversals and above the price for short reversals
+plotshape(strict_reversal_long or potential_reversal_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.small, title="Long Reversal Dot")
+plotshape(strict_reversal_short or potential_reversal_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.small, title="Short Reversal Dot")
 
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 
@@ -431,7 +442,7 @@ if show_table
     // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
     rsi_display = str.tostring(math.round(rsi_value, 2))
-    rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 🇨��" : rsi_display + " 🇨🇭"
+    rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 🇨🇭" : rsi_display + " 🇨🇭"
     adx_signal = adx_value >= adx_threshold ? "Strong" : "Weak"
     volume_ratio = volume / volume_ma
     volume_status = if volume_ratio <= 0.5
@@ -472,4 +483,8 @@ alertcondition(timeFilteredRsiOversoldAlert, title="Oversold", message="OVERSOLD
 // Create alert conditions for middle EMA crossovers with time filter
 alertcondition(timeFilteredCloseCrossAboveMiddleEMA, title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 alertcondition(timeFilteredCloseCrossBelowMiddleEMA, title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// ================================= POTENTIAL REVERSAL ALERTS =======================================================
+// Alert condition for potential reversal (strict or potential, long or short) ----------------------------------------
+alertcondition(potential_reversal_signal, title="Potential Reversal", message="POTENTIAL_REVERSAL\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

@@ -156,32 +156,24 @@ get_color_brightness(r, g, b) =>
     // Using perceived brightness formula: (0.299*R + 0.587*G + 0.114*B)
     math.round(0.299 * r + 0.587 * g + 0.114 * b)
 
-// Function to get blended gradient color based on trend, RSI, and ADX
-get_blended_gradient_color(trend_direction, rsi_value, adx_value, adx_threshold) =>
-    // Normalize RSI to 0-1 range (0 = oversold, 1 = overbought)
-    rsi_normalized = (rsi_value - rsi_oversold) / (rsi_overbought - rsi_oversold)
-    rsi_normalized := math.max(0, math.min(1, rsi_normalized))
-    
-    // Normalize ADX to 0-1 range (0 = weak, 1 = strong)
-    adx_normalized = math.min(1, adx_value / adx_threshold)
-    
-    // Calculate base color based on trend direction
-    base_r = trend_direction == "Bullish" ? 0 : 255
-    base_g = trend_direction == "Bullish" ? 255 : 0
-    base_b = 0
-    
-    // Blend with RSI (more red for overbought, more green for oversold)
-    rsi_blend = 0.3  // RSI influence factor
-    r = math.round(base_r + (rsi_normalized * 255 - base_r) * rsi_blend)
-    g = math.round(base_g + ((1 - rsi_normalized) * 255 - base_g) * rsi_blend)
+// Function to get RSI-based gradient color: green (low), yellow (middle), red (high)
+get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
+    normalized = math.max(0, math.min(1, (rsi - rsi_min) / (rsi_max - rsi_min)))
+    r = 0
+    g = 0
     b = 0
-    
-    // Adjust intensity based on ADX
-    intensity = 0.7 + (adx_normalized * 0.3)  // 0.7 to 1.0 range
-    r := math.round(r * intensity)
-    g := math.round(g * intensity)
-    b := math.round(b * intensity)
-    
+    if normalized < 0.5
+        // Green to Yellow
+        t = normalized * 2
+        r := math.round(0 + (255 - 0) * t)      // 0 to 255
+        g := math.round(128 + (255 - 128) * t)  // 128 to 255
+        b := 0                                  // stays 0
+    else
+        // Yellow to Red
+        t = (normalized - 0.5) * 2
+        r := 255                                // stays 255
+        g := math.round(255 - (255 * t))        // 255 to 0
+        b := 0                                  // stays 0
     color.rgb(r, g, b)
 
 // Function to determine optimal setup conditions
@@ -410,52 +402,37 @@ if timeFilteredShortSignal
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 
 if show_table
-    // Create table with position based on user selection --------------------------------------------------------------
+    // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
      position.bottom_left : position.bottom_right, columns = 2, rows = 8, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
-    
-    // Header row ------------------------------------------------------------------------------------------------------
+    // Header row
     table.cell(monitor_table, 0, 0, "Indicator", bgcolor=color.rgb(40, 40, 40), text_color=color.white, 
      text_size=size.small)
     table.cell(monitor_table, 1, 0, "Value", bgcolor=color.rgb(40, 40, 40), text_color=color.white, 
      text_size=size.small)
 
-    // Combined Time Filter and Style row ------------------------------------------------------------------------------
+    // Combined Time Filter and Style row
     time_filter_status = is_within_alert_time() ? "Active ✅" : "Inactive ❌"
-    style_color = trading_style == "Scalping" ? color.maroon : trading_style == "Day Trading" ? color.orange : trading_style == "Swing Trading" ? color.blue : color.gray
-    
-    // Combine the statuses
+    style_color = trading_style == "Scalping" ? color.green: trading_style == "Day Trading" ? color.orange : trading_style == "Swing Trading" ? color.blue : color.gray
     combined_filter_style = time_filter_status + " | " + trading_style
-    
-    // Blend the colors
     filter_color = is_within_alert_time() ? color.teal : color.maroon
     blended_filter_style_color = color.rgb(
-        math.round((color.r(filter_color) + color.r(style_color)) / 2),
-        math.round((color.g(filter_color) + color.g(style_color)) / 2),
-        math.round((color.b(filter_color) + color.b(style_color)) / 2)
-    )
-    
-    // Determine text color based on background brightness
+     math.round((color.r(filter_color) + color.r(style_color)) / 2),
+     math.round((color.g(filter_color) + color.g(style_color)) / 2),
+     math.round((color.b(filter_color) + color.b(style_color)) / 2)
+     )
     filter_style_text_color = get_color_brightness(color.r(blended_filter_style_color), color.g(blended_filter_style_color), color.b(blended_filter_style_color)) > 128 ? color.black : color.white
-    
     table.cell(monitor_table, 0, 1, "Filter & Style", text_color=color.white, text_size=size.small, bgcolor=color.black)
-    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=blended_filter_style_color, text_color=filter_style_text_color, text_size=size.small)
-    
-    // Combined Indicators row -----------------------------------------------------------------------------------------
-    // Create a combined string for trend, RSI, ADX, and volume
+    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.gray, text_color=filter_style_text_color, text_size=size.small)
+
+    // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
-    
-    // RSI display with emoji
     rsi_display = str.tostring(math.round(rsi_value, 2))
-    rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 💰" : rsi_display + " 💩"
-    
-    // ADX status
+    rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 🇨��" : rsi_display + " 🇨🇭"
     adx_signal = adx_value >= adx_threshold ? "Strong" : "Weak"
-    
-    // Volume status
     volume_ratio = volume / volume_ma
     volume_status = if volume_ratio <= 0.5
         "Low 📉"
@@ -465,48 +442,21 @@ if show_table
         "Above Avg 📈"
     else
         "High 🚀"
-    
-    // Combine all indicators into one string
     combined_indicators = trend_direction + " | RSI: " + rsi_display + " | ADX: " + adx_signal + " | Vol: " + volume_status
-    
-    // Calculate blended gradient color
-    blended_color = get_blended_gradient_color(trend_direction, rsi_value, adx_value, adx_threshold)
-    
-    // Determine text color based on background brightness
-    indicators_text_color = get_color_brightness(color.r(blended_color), color.g(blended_color), color.b(blended_color)) > 128 ? color.black : color.white
-    
+    rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
+    indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
+    alerts_text_color = indicators_text_color
     table.cell(monitor_table, 0, 2, "Indicators", text_color=color.white, text_size=size.small, bgcolor=color.black)
-    table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=blended_color, text_color=indicators_text_color, text_size=size.small)
+    table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=rsi_gradient_color, text_color=indicators_text_color, text_size=size.small)
 
-    // Combined Reversal Status and Last Alert row ---------------------------------------------------------------------
+    // Combined Reversal Status and Last Alert row
     [setup_message, setup_color] = get_optimal_setup()
-    
-    // Format alert status message
     alert_status_message = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType + " (" + str.tostring(barsSinceLastAlert) + " bars ago)"
-    
-    // Combine reversal status and alert status
     combined_status = setup_message + " | " + alert_status_message
-    
-    // Determine background color (use setup_color as base, blend with alert_color if needed)
-    color alert_color = switch lastAlertType
-        "SYZ_LONG" => color.green
-        "SYZ_SHORT" => color.red
-        "TPIV_LONG" => color.teal 
-        "TPIV_SHORT" => color.maroon
-        => color.gray // Default for "None"
-    
-    // Blend the colors if there's an active alert
-    status_bgcolor = lastAlertType == "None" ? setup_color : color.rgb(
-        math.round((color.r(setup_color) + color.r(alert_color)) / 2),
-        math.round((color.g(setup_color) + color.g(alert_color)) / 2),
-        math.round((color.b(setup_color) + color.b(alert_color)) / 2)
-    )
-    
-    // Determine text color based on background brightness
-    status_text_color = get_color_brightness(color.r(status_bgcolor), color.g(status_bgcolor), color.b(status_bgcolor)) > 128 ? color.black : color.white
-    
     table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.small, bgcolor=color.black)
-    table.cell(monitor_table, 1, 3, combined_status, text_color=status_text_color, bgcolor=status_bgcolor, text_size=size.small)
+    // Set alert background color based on last alert type
+    alert_bgcolor = lastAlertType == "SYZ_SHORT" or lastAlertType == "TPIV_SHORT" ? color.red : lastAlertType == "SYZ_LONG" or lastAlertType == "TPIV_LONG" ? color.green : rsi_gradient_color
+    table.cell(monitor_table, 1, 3, combined_status, text_color=alerts_text_color, bgcolor=alert_bgcolor, text_size=size.small)
 
 
 // ========================================== ALERTS ===================================================================
@@ -523,25 +473,3 @@ alertcondition(timeFilteredRsiOversoldAlert, title="Oversold", message="OVERSOLD
 alertcondition(timeFilteredCloseCrossAboveMiddleEMA, title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 alertcondition(timeFilteredCloseCrossBelowMiddleEMA, title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-// =================================== TRANSITION ALERTS ===============================================================
-
-// // Track the previous price line color to detect transitions -----------------------------------------------------------
-// var previousPriceLineColor = color.white
-
-// // Determine if the price line color has changed from white to another color -------------------------------------------
-// colorTransition = priceLineColor != color.white and previousPriceLineColor == color.white
-
-// // New alert condition: Detect when price line changes TO white --------------------------------------------------------
-// whiteColorTransition = priceLineColor == color.white and previousPriceLineColor != color.white
-
-// // Update the previous price line color for the next bar ---------------------------------------------------------------
-// previousPriceLineColor := priceLineColor
-
-// // Create the alert condition for color transitions with time filter ---------------------------------------------------
-// alertcondition(colorTransition and is_within_alert_time(), title="Trend Pivot Alert", message="Trend Pivot \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-
-// // Create new alert condition for transitions TO white color with time filter ------------------------------------------
-// alertcondition(whiteColorTransition and is_within_alert_time(), title="White Color Alert",message="Price Line Changed to White")
-
-// // EMAS Crossing -------------------------------------------------------------------------------------------------------
-// alertcondition(ta.cross(close, (ema1 + ema2) / 2 ),title ="EMAs Crossing", message = "EMAs Crossing") 

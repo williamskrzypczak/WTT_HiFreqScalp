@@ -441,9 +441,11 @@ if show_table
 
     // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
+    trend_emoji = plus_di > minus_di ? "🚀" : "⬇️"
     rsi_display = str.tostring(math.round(rsi_value, 2))
     rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 🇨🇭" : rsi_display + " 🇨🇭"
     adx_signal = adx_value >= adx_threshold ? "Strong" : "Weak"
+    adx_emoji = adx_value >= adx_threshold ? "💪" : "😴"
     volume_ratio = volume / volume_ma
     volume_status = if volume_ratio <= 0.5
         "Low 📉"
@@ -453,7 +455,7 @@ if show_table
         "Above Avg 📈"
     else
         "High 🚀"
-    combined_indicators = trend_direction + " | RSI: " + rsi_display + " | ADX: " + adx_signal + " | Vol: " + volume_status
+    combined_indicators = trend_direction + " " + trend_emoji + " | RSI: " + rsi_display + " | ADX: " + adx_signal + " " + adx_emoji + " | Vol: " + volume_status
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
     alerts_text_color = indicators_text_color

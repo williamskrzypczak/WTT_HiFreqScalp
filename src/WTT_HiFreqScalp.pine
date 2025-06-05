@@ -420,10 +420,8 @@ if show_table
      border_width = 1)
 
     // Header row
-    table.cell(monitor_table, 0, 0, "Indicator", bgcolor=color.rgb(40, 40, 40), text_color=color.white, 
-     text_size=size.small)
-    table.cell(monitor_table, 1, 0, "Value", bgcolor=color.rgb(40, 40, 40), text_color=color.white, 
-     text_size=size.small)
+    table.cell(monitor_table, 0, 0, "Indicator", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.normal)
+    table.cell(monitor_table, 1, 0, "Value", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.normal)
 
     // Combined Time Filter and Style row
     time_filter_status = is_within_alert_time() ? "Active ✅" : "Inactive ❌"
@@ -436,16 +434,22 @@ if show_table
      math.round((color.b(filter_color) + color.b(style_color)) / 2)
      )
     filter_style_text_color = get_color_brightness(color.r(blended_filter_style_color), color.g(blended_filter_style_color), color.b(blended_filter_style_color)) > 128 ? color.black : color.white
-    table.cell(monitor_table, 0, 1, "Filter & Style", text_color=color.white, text_size=size.small, bgcolor=color.black)
-    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.gray, text_color=filter_style_text_color, text_size=size.small)
+    table.cell(monitor_table, 0, 1, "Filter & Style", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.gray, text_color=filter_style_text_color, text_size=size.normal)
 
     // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
-    trend_emoji = plus_di > minus_di ? "🚀" : "⬇️"
+    trend_emoji = plus_di > minus_di ? "🟢" : "🔴"
+    trend_color = plus_di > minus_di ? color.green : color.red
     rsi_display = str.tostring(math.round(rsi_value, 2))
-    rsi_display := rsi_value <= rsi_oversold or rsi_value >= rsi_overbought ? rsi_display + " 🇨🇭" : rsi_display + " 🇨🇭"
+    if rsi_value <= rsi_oversold
+        rsi_display := rsi_display + " 🟢"
+    else if rsi_value >= rsi_overbought
+        rsi_display := rsi_display + " 🔴"
+    else
+        rsi_display := rsi_display + " 🇨🇭"
     adx_signal = adx_value >= adx_threshold ? "Strong" : "Weak"
-    adx_emoji = adx_value >= adx_threshold ? "💪" : "😴"
+    adx_emoji = adx_value >= adx_threshold ? "💪" : "🥺"
     volume_ratio = volume / volume_ma
     volume_status = if volume_ratio <= 0.5
         "Low 📉"
@@ -459,17 +463,17 @@ if show_table
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
     alerts_text_color = indicators_text_color
-    table.cell(monitor_table, 0, 2, "Indicators", text_color=color.white, text_size=size.small, bgcolor=color.black)
-    table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=rsi_gradient_color, text_color=indicators_text_color, text_size=size.small)
+    table.cell(monitor_table, 0, 2, "Indicators", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=rsi_gradient_color, text_color=indicators_text_color, text_size=size.normal)
 
     // Combined Reversal Status and Last Alert row
     [setup_message, setup_color] = get_optimal_setup()
     alert_status_message = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType + " (" + str.tostring(barsSinceLastAlert) + " bars ago)"
     combined_status = setup_message + " | " + alert_status_message
-    table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.small, bgcolor=color.black)
+    table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     // Set alert background color based on last alert type
     alert_bgcolor = lastAlertType == "SYZ_SHORT" or lastAlertType == "TPIV_SHORT" ? color.maroon : lastAlertType == "SYZ_LONG" or lastAlertType == "TPIV_LONG" ? color.teal : rsi_gradient_color
-    table.cell(monitor_table, 1, 3, combined_status, text_color=color.white, bgcolor=alert_bgcolor, text_size=size.small)
+    table.cell(monitor_table, 1, 3, combined_status, text_color=color.white, bgcolor=alert_bgcolor, text_size=size.normal)
 
 
 // ========================================== ALERTS ===================================================================
@@ -477,8 +481,6 @@ if show_table
 // Long and short trading alerts with time filter ----------------------------------------------------------------------
 alertcondition(timeFilteredLongSignal, title="Syzygy Long", message="SYZ_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 alertcondition(timeFilteredShortSignal, title="Syzygy Short", message="SYZ_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(timeFilteredRsiOverboughtAlert, title="Overbought", message="OVERBOUGHT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(timeFilteredRsiOversoldAlert, title="Oversold", message="OVERSOLD \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= MIDDLE EMA CROSSOVER ALERTS =======================================================
 
@@ -488,5 +490,5 @@ alertcondition(timeFilteredCloseCrossBelowMiddleEMA, title="Trend Pivot Short", 
 
 // ================================= POTENTIAL REVERSAL ALERTS =======================================================
 // Alert condition for potential reversal (strict or potential, long or short) ----------------------------------------
-alertcondition(potential_reversal_signal, title="Potential Reversal", message="POTENTIAL_REVERSAL\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(potential_reversal_signal and is_within_alert_time(), title="Potential Reversal", message="POTENTIAL_REVERSAL\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

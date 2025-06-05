@@ -179,7 +179,7 @@ get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
 // Function to determine optimal setup conditions
 get_optimal_setup() =>
     // Initialize setup message and color
-    var string setup_message = "Neutral"
+    var string setup_message = "Neutral 🇨🇭"
     var color setup_color = color.gray
     
     // Create a flashing effect using seconds
@@ -202,7 +202,7 @@ get_optimal_setup() =>
         setup_message := "Potential Reversal Short ⚡"
         setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     else
-        setup_message := "Neutral"
+        setup_message := "Neutral 🇨🇭"
         setup_color := color.gray
     
     [setup_message, setup_color]

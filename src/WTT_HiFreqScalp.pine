@@ -74,6 +74,8 @@ end_hour = input.int(11, title="End Hour (CST)", minval=0, maxval=23, group=GROU
 enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
 sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
 sydney_end_hour = input.int(2, title="Sydney-Tokyo End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+// DST toggle
+use_dst = input.bool(false, title="Account for Daylight Savings Time (CST → CDT)", group=GROUP_ALERT_TIME)
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -291,10 +293,9 @@ is_within_alert_time() =>
     else
         // Get the current hour in the exchange's timezone -------------------------------------------------------------
         current_hour = hour(time)
-        
+        current_hour := use_dst ? (current_hour + 1) % 24 : current_hour
         // Check regular trading hours (e.g., 7 AM - 11 AM CST) --------------------------------------------------------
         regular_hours = current_hour >= start_hour and current_hour < end_hour
-        
         // Check Sydney-Tokyo overlap if enabled -----------------------------------------------------------------------
         sydney_tokyo_hours = false
         if enable_sydney_tokyo
@@ -305,7 +306,6 @@ is_within_alert_time() =>
             else
                 // Same day: start_hour <= current_hour < end_hour -----------------------------------------------------
                 sydney_tokyo_hours := current_hour >= sydney_start_hour and current_hour < sydney_end_hour
-        
         // Return true if either time window is active -----------------------------------------------------------------
         regular_hours or sydney_tokyo_hours
 
@@ -459,7 +459,7 @@ if show_table
         "Above Avg 📈"
     else
         "High 🚀"
-    combined_indicators = trend_direction + " " + trend_emoji + " | ADX: " + adx_signal + " " + adx_emoji + " | Vol: " + volume_status + " | RSI: " + rsi_display
+    combined_indicators = trend_direction + " " + trend_emoji + " | ADX: " + adx_signal + " " + adx_emoji + " | RSI: " + rsi_display + " | Vol: " + volume_status
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
     alerts_text_color = indicators_text_color

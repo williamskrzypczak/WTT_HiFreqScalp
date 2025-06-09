@@ -485,8 +485,8 @@ alertcondition(timeFilteredShortSignal, title="Syzygy Short", message="SYZ_SHORT
 // ================================= MIDDLE EMA CROSSOVER ALERTS =======================================================
 
 // Create alert conditions for middle EMA crossovers with time filter
-alertcondition(timeFilteredCloseCrossAboveMiddleEMA, title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(timeFilteredCloseCrossBelowMiddleEMA, title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredCloseCrossAboveMiddleEMA and use_time_filter, title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(timeFilteredCloseCrossBelowMiddleEMA and use_time_filter, title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= POTENTIAL REVERSAL ALERTS =======================================================
 // Alert condition for potential reversal (strict or potential, long or short) ----------------------------------------

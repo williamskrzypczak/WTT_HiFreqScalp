@@ -76,8 +76,6 @@ sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=
 sydney_end_hour = input.int(2, title="Sydney-Tokyo End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
 // DST toggle
 use_dst = input.bool(false, title="Account for Daylight Savings Time (CST → CDT)", group=GROUP_ALERT_TIME)
-// TPV Alert Override
-override_tpv_time_filter = input.bool(false, title="Allow TPV Alerts Outside Time Filter", group=GROUP_ALERT_TIME)
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -487,8 +485,8 @@ alertcondition(timeFilteredShortSignal, title="Syzygy Short", message="SYZ_SHORT
 // ================================= MIDDLE EMA CROSSOVER ALERTS =======================================================
 
 // Create alert conditions for middle EMA crossovers with time filter
-alertcondition(timeFilteredCloseCrossAboveMiddleEMA and (use_time_filter == false or override_tpv_time_filter), title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(timeFilteredCloseCrossBelowMiddleEMA and (use_time_filter == false or override_tpv_time_filter), title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(closeCrossAboveMiddleEMA and use_time_filter and is_within_alert_time(), title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(closeCrossBelowMiddleEMA and use_time_filter and is_within_alert_time(), title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= POTENTIAL REVERSAL ALERTS =======================================================
 // Alert condition for potential reversal (strict or potential, long or short) ----------------------------------------

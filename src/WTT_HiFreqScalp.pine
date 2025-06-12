@@ -69,7 +69,7 @@ reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", mi
 // ==================================== ALERT TIME SETTINGS ============================================================
 // Time-based alert filtering for CST (UTC-6) with Sydney-Tokyo overlap ------------------------------------------------
 use_time_filter = input.bool(true, title="Enable Time-Based Alert Filter", group=GROUP_ALERT_TIME)
-start_hour = input.int(7, title="Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+start_hour = input.int(8, title="Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
 end_hour = input.int(11, title="End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
 enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
 sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
@@ -181,7 +181,7 @@ get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
 // Function to determine optimal setup conditions
 get_optimal_setup() =>
     // Initialize setup message and color
-    var string setup_message = "Neutral 🇨🇭"
+    var string setup_message = "RV Neutral 🇨🇭"
     var color setup_color = color.gray
     
     // Create a flashing effect using seconds
@@ -204,7 +204,7 @@ get_optimal_setup() =>
         setup_message := "Potential Reversal Short ⚡"
         setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     else
-        setup_message := "Neutral 🇨🇭"
+        setup_message := "RV Neutral 🇨🇭"
         setup_color := color.gray
     
     [setup_message, setup_color]
@@ -435,12 +435,11 @@ if show_table
      )
     filter_style_text_color = get_color_brightness(color.r(blended_filter_style_color), color.g(blended_filter_style_color), color.b(blended_filter_style_color)) > 128 ? color.black : color.white
     table.cell(monitor_table, 0, 1, "Filter & Style", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.gray, text_color=filter_style_text_color, text_size=size.normal)
+    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.rgb(108, 107, 111), text_color=filter_style_text_color, text_size=size.normal)
 
     // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
     trend_emoji = plus_di > minus_di ? "🟢" : "🔴"
-    trend_color = plus_di > minus_di ? color.green : color.red
     rsi_display = str.tostring(math.round(rsi_value, 2))
     if rsi_value <= rsi_oversold
         rsi_display := rsi_display + " 🟢"

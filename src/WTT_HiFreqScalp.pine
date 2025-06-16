@@ -70,10 +70,14 @@ reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", mi
 // Time-based alert filtering for CST (UTC-6) with Sydney-Tokyo overlap ------------------------------------------------
 use_time_filter = input.bool(true, title="Enable Time-Based Alert Filter", group=GROUP_ALERT_TIME)
 start_hour = input.int(8, title="Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+start_minute = input.int(0, title="Start Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 end_hour = input.int(11, title="End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+end_minute = input.int(0, title="End Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
 sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+sydney_start_minute = input.int(0, title="Sydney-Tokyo Start Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 sydney_end_hour = input.int(2, title="Sydney-Tokyo End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+sydney_end_minute = input.int(0, title="Sydney-Tokyo End Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 // DST toggle
 use_dst = input.bool(false, title="Account for Daylight Savings Time (CST → CDT)", group=GROUP_ALERT_TIME)
 
@@ -291,22 +295,40 @@ is_within_alert_time() =>
     if not use_time_filter
         true
     else
-        // Get the current hour in the exchange's timezone -------------------------------------------------------------
+        // Get the current time in the exchange's timezone -------------------------------------------------------------
         current_hour = hour(time)
-        current_hour := use_dst ? (current_hour + 1) % 24 : current_hour
-        // Check regular trading hours (e.g., 7 AM - 11 AM CST) --------------------------------------------------------
-        regular_hours = current_hour >= start_hour and current_hour < end_hour
-        // Check Sydney-Tokyo overlap if enabled -----------------------------------------------------------------------
+        current_minute = minute(time)
+        current_time = current_hour * 60 + current_minute  // Convert to minutes for easier comparison
+        
+        // Adjust for DST if enabled
+        if use_dst
+            current_hour := (current_hour + 1) % 24
+            current_time := current_hour * 60 + current_minute
+        
+        // Convert start and end times to minutes
+        start_time = start_hour * 60 + start_minute
+        end_time = end_hour * 60 + end_minute
+        sydney_start_time = sydney_start_hour * 60 + sydney_start_minute
+        sydney_end_time = sydney_end_hour * 60 + sydney_end_minute
+        
+        // Check regular trading hours
+        regular_hours = if end_time > start_time
+            current_time >= start_time and current_time < end_time
+        else
+            // Handle overnight session
+            current_time >= start_time or current_time < end_time
+        
+        // Check Sydney-Tokyo overlap if enabled
         sydney_tokyo_hours = false
         if enable_sydney_tokyo
-            // Handle overnight session (e.g., 7 PM - 2 AM CST) --------------------------------------------------------
-            if sydney_start_hour > sydney_end_hour
-                // Crosses midnight: 19:00 - 23:59 OR 00:00 - 02:00 ----------------------------------------------------
-                sydney_tokyo_hours := current_hour >= sydney_start_hour or current_hour < sydney_end_hour
+            if sydney_start_time > sydney_end_time
+                // Crosses midnight
+                sydney_tokyo_hours := current_time >= sydney_start_time or current_time < sydney_end_time
             else
-                // Same day: start_hour <= current_hour < end_hour -----------------------------------------------------
-                sydney_tokyo_hours := current_hour >= sydney_start_hour and current_hour < sydney_end_hour
-        // Return true if either time window is active -----------------------------------------------------------------
+                // Same day
+                sydney_tokyo_hours := current_time >= sydney_start_time and current_time < sydney_end_time
+        
+        // Return true if either time window is active
         regular_hours or sydney_tokyo_hours
 
 // ===================================== SIGNAL GENERATION =============================================================

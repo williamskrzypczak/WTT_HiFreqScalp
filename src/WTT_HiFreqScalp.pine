@@ -67,19 +67,24 @@ table_position = input.string("bottom_right", title="Table Position", options=["
 reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", minval=0.5, maxval=1.0, step=0.01, group=GROUP_RSI_ADX)
 
 // ==================================== ALERT TIME SETTINGS ============================================================
-// Time-based alert filtering for CST (UTC-6) with Sydney-Tokyo overlap ------------------------------------------------
+// Time-based alert filtering for exchange timezone (UTC)
 use_time_filter = input.bool(true, title="Enable Time-Based Alert Filter", group=GROUP_ALERT_TIME)
-start_hour = input.int(8, title="Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-start_minute = input.int(0, title="Start Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-end_hour = input.int(11, title="End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-end_minute = input.int(0, title="End Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
+// Note: Times should be entered in exchange timezone (UTC)
+// For 7:45 AM CT: Enter 13:45 (UTC-6) or 12:45 (UTC-5 during DST)
+// For 10:00 AM CT: Enter 16:00 (UTC-6) or 15:00 (UTC-5 during DST)
+// For 7:00 PM ET: Enter 00:00 (UTC-5) or 23:00 (UTC-4 during DST)
+// For 11:00 PM ET: Enter 04:00 (UTC-5) or 03:00 (UTC-4 during DST)
+start_hour = input.int(13, title="Start Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+start_minute = input.int(45, title="Start Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
+end_hour = input.int(16, title="End Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+end_minute = input.int(0, title="End Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
-sydney_start_hour = input.int(19, title="Sydney-Tokyo Start Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-sydney_start_minute = input.int(0, title="Sydney-Tokyo Start Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-sydney_end_hour = input.int(2, title="Sydney-Tokyo End Hour (CST)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-sydney_end_minute = input.int(0, title="Sydney-Tokyo End Minute (CST)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
+sydney_start_hour = input.int(0, title="Sydney-Tokyo Start Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+sydney_start_minute = input.int(0, title="Sydney-Tokyo Start Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
+sydney_end_hour = input.int(4, title="Sydney-Tokyo End Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
+sydney_end_minute = input.int(0, title="Sydney-Tokyo End Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
 // DST toggle
-use_dst = input.bool(false, title="Account for Daylight Savings Time (CST → CDT)", group=GROUP_ALERT_TIME)
+use_dst = input.bool(false, title="Account for Daylight Savings Time (ET → EDT)", group=GROUP_ALERT_TIME)
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -295,41 +300,22 @@ is_within_alert_time() =>
     if not use_time_filter
         true
     else
-        // Get the current time in the exchange's timezone -------------------------------------------------------------
+        // Get current time in exchange timezone
         current_hour = hour(time)
         current_minute = minute(time)
-        current_time = current_hour * 60 + current_minute  // Convert to minutes for easier comparison
+        current_time = current_hour * 60 + current_minute
         
-        // Adjust for DST if enabled
-        if use_dst
-            current_hour := (current_hour + 1) % 24
-            current_time := current_hour * 60 + current_minute
-        
-        // Convert start and end times to minutes
+        // Convert input times to minutes
         start_time = start_hour * 60 + start_minute
         end_time = end_hour * 60 + end_minute
-        sydney_start_time = sydney_start_hour * 60 + sydney_start_minute
-        sydney_end_time = sydney_end_hour * 60 + sydney_end_minute
         
-        // Check regular trading hours
-        regular_hours = if end_time > start_time
+        // Simple time window check
+        if end_time > start_time
+            // Same day window (e.g., 9:30 to 16:00)
             current_time >= start_time and current_time < end_time
         else
-            // Handle overnight session
+            // Overnight window (e.g., 19:00 to 2:00)
             current_time >= start_time or current_time < end_time
-        
-        // Check Sydney-Tokyo overlap if enabled
-        sydney_tokyo_hours = false
-        if enable_sydney_tokyo
-            if sydney_start_time > sydney_end_time
-                // Crosses midnight
-                sydney_tokyo_hours := current_time >= sydney_start_time or current_time < sydney_end_time
-            else
-                // Same day
-                sydney_tokyo_hours := current_time >= sydney_start_time and current_time < sydney_end_time
-        
-        // Return true if either time window is active
-        regular_hours or sydney_tokyo_hours
 
 // ===================================== SIGNAL GENERATION =============================================================
 

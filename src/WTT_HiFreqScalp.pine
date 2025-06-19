@@ -4,7 +4,13 @@
 // Revision: v1.0
 //
 // =====================================================================================================================
-
+//
+// Version History:
+//   v1.0 - Initial release.
+//   v1.1 - Simplified time filtering to a single ON/OFF toggle for CST 7:45-11:00AM & 7-11PM alert windows.
+//
+// =====================================================================================================================
+//
 // This Pine Script code implements a high-frequency scalp trading indicator for TradingView called "WTT_HiFreqScalp." -
 // It calculates multiple Exponential Moving Averages (EMAs) with configurable lengths to identify trend direction and -
 // potential trade signals. The script generates long and short signals based on crossovers between a "Super Fast" EMA -
@@ -67,24 +73,8 @@ table_position = input.string("bottom_right", title="Table Position", options=["
 reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", minval=0.5, maxval=1.0, step=0.01, group=GROUP_RSI_ADX)
 
 // ==================================== ALERT TIME SETTINGS ============================================================
-// Time-based alert filtering for exchange timezone (UTC)
-use_time_filter = input.bool(true, title="Enable Time-Based Alert Filter", group=GROUP_ALERT_TIME)
-// Note: Times should be entered in exchange timezone (UTC)
-// For 7:45 AM CT: Enter 13:45 (UTC-6) or 12:45 (UTC-5 during DST)
-// For 10:00 AM CT: Enter 16:00 (UTC-6) or 15:00 (UTC-5 during DST)
-// For 7:00 PM ET: Enter 00:00 (UTC-5) or 23:00 (UTC-4 during DST)
-// For 11:00 PM ET: Enter 04:00 (UTC-5) or 03:00 (UTC-4 during DST)
-start_hour = input.int(13, title="Start Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-start_minute = input.int(45, title="Start Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-end_hour = input.int(16, title="End Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-end_minute = input.int(0, title="End Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-enable_sydney_tokyo = input.bool(true, title="Include Sydney-Tokyo Overlap", group=GROUP_ALERT_TIME)
-sydney_start_hour = input.int(0, title="Sydney-Tokyo Start Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-sydney_start_minute = input.int(0, title="Sydney-Tokyo Start Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-sydney_end_hour = input.int(4, title="Sydney-Tokyo End Hour (UTC)", minval=0, maxval=23, group=GROUP_ALERT_TIME)
-sydney_end_minute = input.int(0, title="Sydney-Tokyo End Minute (UTC)", minval=0, maxval=45, step=15, group=GROUP_ALERT_TIME)
-// DST toggle
-use_dst = input.bool(false, title="Account for Daylight Savings Time (ET → EDT)", group=GROUP_ALERT_TIME)
+// Simplified time-based alert filtering for CST (UTC-6)
+use_time_filter = input.bool(true, title="Enable Time Filter (CST 7:45-11:00AM & 7-11PM)", group=GROUP_ALERT_TIME)
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -294,28 +284,24 @@ is_high_volume() =>
         current_volume > (volume_ma * volume_multiplier)
 
 // ================================== TIME FILTER FUNCTION =============================================================
-// Function to check if current time is within alert time window -------------------------------------------------------
-// Includes both regular trading hours and Sydney-Tokyo overlap --------------------------------------------------------
+// Function to check if current time is within alert time window (CST 7:45-11:00AM & 7-11PM)
 is_within_alert_time() =>
     if not use_time_filter
         true
     else
-        // Get current time in exchange timezone
+        // Get current UTC hour and minute
         current_hour = hour(time)
         current_minute = minute(time)
         current_time = current_hour * 60 + current_minute
-        
-        // Convert input times to minutes
-        start_time = start_hour * 60 + start_minute
-        end_time = end_hour * 60 + end_minute
-        
-        // Simple time window check
-        if end_time > start_time
-            // Same day window (e.g., 9:30 to 16:00)
-            current_time >= start_time and current_time < end_time
-        else
-            // Overnight window (e.g., 19:00 to 2:00)
-            current_time >= start_time or current_time < end_time
+        // CST = UTC-6, so 7:45AM CST = 13:45 UTC, 11:00AM CST = 17:00 UTC
+        // 7:00PM CST = 01:00 UTC (next day), 11:00PM CST = 05:00 UTC (next day)
+        // First window: 13:45 to 17:00
+        window1_start = 13 * 60 + 45
+        window1_end = 17 * 60
+        // Second window: 01:00 to 05:00
+        window2_start = 1 * 60
+        window2_end = 5 * 60
+        (current_time >= window1_start and current_time < window1_end) or (current_time >= window2_start and current_time < window2_end)
 
 // ===================================== SIGNAL GENERATION =============================================================
 

@@ -74,7 +74,7 @@ reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", mi
 
 // ==================================== ALERT TIME SETTINGS ============================================================
 // Simplified time-based alert filtering for CST (UTC-6)
-use_time_filter = input.bool(true, title="Enable Time Filter (CST 7:45-11:00AM & 7-11PM)", group=GROUP_ALERT_TIME)
+use_time_filter = input.bool(true, title="Overlap Mkt Time Filter (CST 7:45-11:00AM & 7-11PM)", group=GROUP_ALERT_TIME)
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -289,19 +289,26 @@ is_within_alert_time() =>
     if not use_time_filter
         true
     else
-        // Get current UTC hour and minute
+        // Get current exchange time
         current_hour = hour(time)
         current_minute = minute(time)
         current_time = current_hour * 60 + current_minute
-        // CST = UTC-6, so 7:45AM CST = 13:45 UTC, 11:00AM CST = 17:00 UTC
-        // 7:00PM CST = 01:00 UTC (next day), 11:00PM CST = 05:00 UTC (next day)
-        // First window: 13:45 to 17:00
-        window1_start = 13 * 60 + 45
-        window1_end = 17 * 60
-        // Second window: 01:00 to 05:00
-        window2_start = 1 * 60
-        window2_end = 5 * 60
-        (current_time >= window1_start and current_time < window1_end) or (current_time >= window2_start and current_time < window2_end)
+        
+        // Adjust time windows based on actual exchange time
+        // Morning session: 7:45AM-11:00AM (adjust as needed)
+        window1_start = 13 * 60 + 45  // 13:45
+        window1_end = 17 * 60         // 17:00
+        
+        // Evening session: 7:00PM-11:00PM (adjust to match exchange time)
+        // If exchange shows 22:30 when it's 9:36 PM local, adjust accordingly
+        window2_start = 19 * 60       // 19:00 (7:00 PM)
+        window2_end = 23 * 60         // 23:00 (11:00 PM)
+        
+        // Check if current time falls within either window
+        in_window1 = current_time >= window1_start and current_time < window1_end
+        in_window2 = current_time >= window2_start and current_time < window2_end
+        
+        in_window1 or in_window2
 
 // ===================================== SIGNAL GENERATION =============================================================
 

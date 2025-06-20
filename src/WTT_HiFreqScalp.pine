@@ -1,13 +1,14 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v1.0
+// Revision: v1.2
 //
 // =====================================================================================================================
 //
 // Version History:
 //   v1.0 - Initial release.
 //   v1.1 - Simplified time filtering to a single ON/OFF toggle for CST 7:45-11:00AM & 7-11PM alert windows.
+//   v1.2 - Refactored variables for clarity, disabled Syzygy alerts, and ensured all alerts honor the global enable/disable setting.
 //
 // =====================================================================================================================
 //
@@ -34,7 +35,7 @@ var GROUP_EMA = "Exponential Moving Average Settings"
 var GROUP_VOLUME = "Volume Filter Settings"
 var GROUP_DISPLAY = "Display Preferences"
 var GROUP_RSI_ADX = "RSI & ADX Monitor Settings"
-var GROUP_ALERT_TIME = "Alert Time Settings"
+var GROUP_ALERT_TIME = "Alert Setting"
 
 // ==================================== TRADING STYLE PRESETS ==========================================================
 // Trading style selection with optimized parameters -------------------------------------------------------------------
@@ -73,8 +74,8 @@ table_position = input.string("bottom_right", title="Table Position", options=["
 reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", minval=0.5, maxval=1.0, step=0.01, group=GROUP_RSI_ADX)
 
 // ==================================== ALERT TIME SETTINGS ============================================================
-// Simplified time-based alert filtering for CST (UTC-6)
-use_time_filter = input.bool(true, title="Overlap Mkt Time Filter (CST 7:45-11:00AM & 7-11PM)", group=GROUP_ALERT_TIME)
+// Simple alert on/off toggle
+enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, tooltip="Toggle all alerts on or off")
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -91,20 +92,7 @@ volume_ma = ta.sma(volume, volume_ma_length)
 rsi_value = ta.rsi(close, rsi_length)
 
 // Calculate ADX components for trend strength assessment --------------------------------------------------------------
-// First calculate the directional movement ----------------------------------------------------------------------------
-dip = ta.change(low)                        // Plus Directional Movement (raw) -----------------------------------------
-dim = ta.change(high)                       // Minus Directional Movement (raw) ----------------------------------------
-plus_dm = dip > 0 and dip > dim ? dip : 0   // Final Plus DM -----------------------------------------------------------
-minus_dm = dim < 0 and math.abs(dim) > dip ? math.abs(dim) : 0  // Final Minus DM --------------------------------------
-
-// Calculate True Range and Directional Indicators ---------------------------------------------------------------------
-tr = ta.tr
-plus_di = 100 * ta.ema(plus_dm, adx_length) / ta.ema(tr, adx_length)    // +DI -----------------------------------------
-minus_di = 100 * ta.ema(minus_dm, adx_length) / ta.ema(tr, adx_length)  // -DI -----------------------------------------
-
-// Calculate ADX value (strength of the trend) -------------------------------------------------------------------------
-dx = 100 * math.abs(plus_di - minus_di) / (plus_di + minus_di)
-adx_value = ta.ema(dx, adx_length)
+[plus_di, minus_di, adx_value] = ta.dmi(adx_length, adx_length)
 
 // ========================================== FUNCTIONS ===============================================================
 
@@ -188,54 +176,25 @@ get_optimal_setup() =>
     
     // Check for optimal long setup
     if rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
-        setup_message := "Potential Reversal Long 🚀"
+        setup_message := "Syzygy Momentum Peak Long 🚀"
         setup_color := flash ? color.green : color.new(color.green, 90)
     // Check for optimal short setup
     else if rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
-        setup_message := "Potential Reversal Short 📉"
+        setup_message := "Syzygy Momentum Peak Short 📉"
         setup_color := flash ? color.red : color.new(color.red, 90)
     // Check for potential long setup
     else if rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
-        setup_message := "Potential Reversal Long ⚡"
+        setup_message := "Syzygy Momentum Peak Long ⚡"
         setup_color := flash ? color.lime : color.new(color.lime, 90)
     // Check for potential short setup
     else if rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
-        setup_message := "Potential Reversal Short ⚡"
+        setup_message := "Syzygy Momentum Peak Short ⚡"
         setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     else
         setup_message := "RV Neutral 🇨🇭"
         setup_color := color.gray
     
     [setup_message, setup_color]
-
-// Creates a color gradient from green to lime to orange to red based on a value
-// Used for RSI visualization
-get_gradient_color(value, min_value, max_value) =>
-    // Normalize value to 0-1 range
-    normalized = math.max(0, math.min(1, (value - min_value) / (max_value - min_value)))
-    
-    // Four-color gradient: green -> lime -> orange -> red
-    var int r = 0
-    var int g = 0
-    var int b = 0
-    
-    if normalized <= 0.33
-        // Green to Lime (0-33%)
-        r := math.round(normalized * 3 * 50)  // 0 to 50
-        g := math.round(255)                  // Stay at 255
-        b := 0                                // Stay at 0
-    else if normalized <= 0.66
-        // Lime to Orange (33-66%)
-        r := math.round(50 + (normalized - 0.33) * 3 * 205)  // 50 to 255
-        g := math.round(255 - (normalized - 0.33) * 3 * 90)  // 255 to 165
-        b := 0                                               // Stay at 0
-    else
-        // Orange to Red (66-100%)
-        r := math.round(255)                                 // Stay at 255
-        g := math.round(165 - (normalized - 0.66) * 3 * 165)  // 165 to 0
-        b := 0                                                // Stay at 0
-    
-    color.rgb(r, g, b)
 
 // Creates a color gradient from light gray to dark orange based on a value
 // Used for ADX visualization
@@ -274,57 +233,15 @@ get_volume_gradient_color(current_vol, volume_ma, volume_multiplier) =>
         // High volume: blood orange
         color.rgb(255, 155, 0)
 
-// Function to detect unusually high volume ----------------------------------------------------------------------------
-is_high_volume() =>
-    if not use_volume_filter
-        true
-    else
-        volume_ma = ta.sma(volume, volume_ma_length)
-        current_volume = volume
-        current_volume > (volume_ma * volume_multiplier)
-
-// ================================== TIME FILTER FUNCTION =============================================================
-// Function to check if current time is within alert time window (CST 7:45-11:00AM & 7-11PM)
-is_within_alert_time() =>
-    if not use_time_filter
-        true
-    else
-        // Get current exchange time
-        current_hour = hour(time)
-        current_minute = minute(time)
-        current_time = current_hour * 60 + current_minute
-        
-        // Adjust time windows based on actual exchange time
-        // Morning session: 7:45AM-11:00AM (adjust as needed)
-        window1_start = 13 * 60 + 45  // 13:45
-        window1_end = 17 * 60         // 17:00
-        
-        // Evening session: 7:00PM-11:00PM (adjust to match exchange time)
-        // If exchange shows 22:30 when it's 9:36 PM local, adjust accordingly
-        window2_start = 19 * 60       // 19:00 (7:00 PM)
-        window2_end = 23 * 60         // 23:00 (11:00 PM)
-        
-        // Check if current time falls within either window
-        in_window1 = current_time >= window1_start and current_time < window1_end
-        in_window2 = current_time >= window2_start and current_time < window2_end
-        
-        in_window1 or in_window2
-
 // ===================================== SIGNAL GENERATION =============================================================
 
 // Primary trading signals ---------------------------------------------------------------------------------------------
 longSignal = ta.crossover(ema3, middleEMA)                               // Fast EMA crosses above slow EMA ------------
 shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast EMA crosses below slow EMA ------------
 
-// Middle EMA crossover signals ----------------------------------------------------------------------------------------
-closeCrossAboveMiddleEMA = ta.crossover(close, middleEMA)               // Close crosses above middle EMA -------------
-closeCrossBelowMiddleEMA = ta.crossunder(close, middleEMA)              // Close crosses below middle EMA -------------
-
-// Apply time filter to all signals -----------------------------------------------------------------------------------
-timeFilteredLongSignal = longSignal and is_high_volume() and is_trend_aligned_long() and is_adx_favorable() and is_within_alert_time()
-timeFilteredShortSignal = shortSignal and is_high_volume() and is_trend_aligned_short() and is_adx_favorable() and is_within_alert_time()
-timeFilteredCloseCrossAboveMiddleEMA = closeCrossAboveMiddleEMA and is_within_alert_time()
-timeFilteredCloseCrossBelowMiddleEMA = closeCrossBelowMiddleEMA and is_within_alert_time()
+// Apply alert activation to signals -----------------------------------------------------------------------------------
+longSignalActive = longSignal and is_trend_aligned_long() and is_adx_favorable()
+shortSignalActive = shortSignal and is_trend_aligned_short() and is_adx_favorable()
 
 // Overbought/Oversold conditions --------------------------------------------------------------------------------------
 isOverbought = rsi_value > rsi_overbought
@@ -332,17 +249,13 @@ isOversold = rsi_value < rsi_oversold
 rsiOverboughtAlert = isOverbought[1] and ta.crossunder(rsi_value, rsi_overbought)
 rsiOversoldAlert = isOversold[1] and ta.crossover(rsi_value, rsi_oversold)
 
-// Apply time filter to RSI alerts -------------------------------------------------------------------------------------
-timeFilteredRsiOverboughtAlert = rsiOverboughtAlert and is_within_alert_time()
-timeFilteredRsiOversoldAlert = rsiOversoldAlert and is_within_alert_time()
+// === Syzygy Momentum Peak Conditions ===
+strict_momentum_peak_long = rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
+strict_momentum_peak_short = rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
+potential_momentum_peak_long = rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
+potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
 
-// === Potential Reversal Conditions ===
-strict_reversal_long = rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
-strict_reversal_short = rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
-potential_reversal_long = rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
-potential_reversal_short = rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
-
-potential_reversal_signal = strict_reversal_long or strict_reversal_short or potential_reversal_long or potential_reversal_short
+syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
 
 // ================================== ALERT STATUS TRACKING ============================================================
 // Create persistent variables to track the last triggered alert and its bar index -------------------------------------
@@ -350,17 +263,11 @@ var string lastAlertType = "None"
 var int lastAlertBarIndex = 0
 
 // Update alert status based on conditions - track all signal types ---------------------------------------------------
-if timeFilteredLongSignal
-    lastAlertType := "SYZ_LONG"
+if longSignalActive
+    lastAlertType := "SYZ_CROSS_LONG"
     lastAlertBarIndex := bar_index
-else if timeFilteredShortSignal
-    lastAlertType := "SYZ_SHORT"
-    lastAlertBarIndex := bar_index
-else if timeFilteredCloseCrossAboveMiddleEMA
-    lastAlertType := "TPIV_LONG"
-    lastAlertBarIndex := bar_index
-else if timeFilteredCloseCrossBelowMiddleEMA
-    lastAlertType := "TPIV_SHORT"
+else if shortSignalActive
+    lastAlertType := "SYZ_CROSS_SHORT"
     lastAlertBarIndex := bar_index
 
 // Calculate bars since last alert -------------------------------------------------------------------------------------
@@ -387,29 +294,29 @@ plot(showMiddleEMA ? middleEMA : na, color=color.silver, title="Middle EMA", lin
 plot(showSlowEMA ? ema2 : na, color=color.purple, title="Slow EMA", linewidth=4)
 
 // Plot trading signals ------------------------------------------------------------------------------------------------
-plotshape(series=timeFilteredLongSignal, location=location.bottom, color=color.lime, 
-     style=shape.triangleup, size=size.small, title="Syzygy Long", text="B", textcolor=color.lime)
-plotshape(series=timeFilteredShortSignal, location=location.top, color=color.white, 
-     style=shape.triangledown, size=size.small, title="Syzygy Short", text="S", textcolor=color.white)
+plotshape(series=longSignalActive, location=location.bottom, color=color.lime, 
+     style=shape.triangleup, size=size.small, title="Syzygy Cross Long", text="B", textcolor=color.lime)
+plotshape(series=shortSignalActive, location=location.top, color=color.white, 
+     style=shape.triangledown, size=size.small, title="Syzygy Cross Short", text="S", textcolor=color.white)
 
 // Plot overbought/oversold markers ------------------------------------------------------------------------------------
-plotshape(rsiOverboughtAlert, location=location.abovebar, color=color.lime,
+plotshape(rsiOverboughtAlert, location=location.abovebar, color=color.red,
      style=shape.circle, size=size.tiny, title="Overbought")
-plotshape(rsiOversoldAlert, location=location.belowbar, color=color.silver, 
+plotshape(rsiOversoldAlert, location=location.belowbar, color=color.lime, 
      style=shape.circle, size=size.tiny, title="Oversold")
 
 // Draw vertical line at signal points ---------------------------------------------------------------------------------
-if timeFilteredLongSignal
+if longSignalActive
     line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
          color=#43b593, width=1, style=line.style_dotted)
 
-if timeFilteredShortSignal
+if shortSignalActive
     line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
          color=color.gray, width=1, style=line.style_dotted)
 
 // Plot a yellow dot below the price for long reversals and above the price for short reversals
-plotshape(strict_reversal_long or potential_reversal_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.small, title="Long Reversal Dot")
-plotshape(strict_reversal_short or potential_reversal_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.small, title="Short Reversal Dot")
+plotshape(strict_momentum_peak_long or potential_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.small, title="Long Momentum Peak")
+plotshape(strict_momentum_peak_short or potential_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.small, title="Short Momentum Peak")
 
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 
@@ -424,19 +331,19 @@ if show_table
     table.cell(monitor_table, 0, 0, "Indicator", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.normal)
     table.cell(monitor_table, 1, 0, "Value", bgcolor=color.rgb(40, 40, 40), text_color=color.white, text_size=size.normal)
 
-    // Combined Time Filter and Style row
-    time_filter_status = is_within_alert_time() ? "Active ✅" : "Inactive ❌"
+    // Combined Alert Status and Style row
+    alert_activation_status = enable_alerts ? "Active ✅" : "Inactive ❌"
     style_color = trading_style == "Scalping" ? color.green: trading_style == "Day Trading" ? color.orange : trading_style == "Swing Trading" ? color.blue : color.gray
-    combined_filter_style = time_filter_status + " | " + trading_style
-    filter_color = is_within_alert_time() ? color.teal : color.maroon
-    blended_filter_style_color = color.rgb(
-     math.round((color.r(filter_color) + color.r(style_color)) / 2),
-     math.round((color.g(filter_color) + color.g(style_color)) / 2),
-     math.round((color.b(filter_color) + color.b(style_color)) / 2)
+    combined_alert_style = alert_activation_status + " | " + trading_style
+    alert_color = enable_alerts ? color.teal : color.maroon
+    blended_alert_style_color = color.rgb(
+     math.round((color.r(alert_color) + color.r(style_color)) / 2),
+     math.round((color.g(alert_color) + color.g(style_color)) / 2),
+     math.round((color.b(alert_color) + color.b(style_color)) / 2)
      )
-    filter_style_text_color = get_color_brightness(color.r(blended_filter_style_color), color.g(blended_filter_style_color), color.b(blended_filter_style_color)) > 128 ? color.black : color.white
-    table.cell(monitor_table, 0, 1, "Filter & Style", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 1, combined_filter_style, bgcolor=color.rgb(108, 107, 111), text_color=filter_style_text_color, text_size=size.normal)
+    alert_style_text_color = get_color_brightness(color.r(blended_alert_style_color), color.g(blended_alert_style_color), color.b(blended_alert_style_color)) > 128 ? color.black : color.white
+    table.cell(monitor_table, 0, 1, "Alerts & Style", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 1, combined_alert_style, bgcolor=color.rgb(108, 107, 111), text_color=alert_style_text_color, text_size=size.normal)
 
     // Combined Indicators row
     trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
@@ -472,23 +379,17 @@ if show_table
     combined_status = setup_message + " | " + alert_status_message
     table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     // Set alert background color based on last alert type
-    alert_bgcolor = lastAlertType == "SYZ_SHORT" or lastAlertType == "TPIV_SHORT" ? color.maroon : lastAlertType == "SYZ_LONG" or lastAlertType == "TPIV_LONG" ? color.teal : rsi_gradient_color
+    alert_bgcolor = lastAlertType == "SYZ_CROSS_SHORT" ? color.maroon : lastAlertType == "SYZ_CROSS_LONG" ? color.teal : rsi_gradient_color
     table.cell(monitor_table, 1, 3, combined_status, text_color=color.white, bgcolor=alert_bgcolor, text_size=size.normal)
 
 
 // ========================================== ALERTS ===================================================================
 
-// Long and short trading alerts with time filter ----------------------------------------------------------------------
-alertcondition(timeFilteredLongSignal, title="Syzygy Long", message="SYZ_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(timeFilteredShortSignal, title="Syzygy Short", message="SYZ_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+// Long and short trading alerts ----------------------------------------------------------------------
+alertcondition(longSignalActive and enable_alerts, title="Syzygy Cross Long", message="SYZ_CROSS_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(shortSignalActive and enable_alerts, title="Syzygy Cross Short", message="SYZ_CROSS_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-// ================================= MIDDLE EMA CROSSOVER ALERTS =======================================================
-
-// Create alert conditions for middle EMA crossovers with time filter
-alertcondition(closeCrossAboveMiddleEMA and use_time_filter and is_within_alert_time(), title="Trend Pivot Long", message="TPIV_LONG \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(closeCrossBelowMiddleEMA and use_time_filter and is_within_alert_time(), title="Trend Pivot Short", message="TPIV_SHORT \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-
-// ================================= POTENTIAL REVERSAL ALERTS =======================================================
-// Alert condition for potential reversal (strict or potential, long or short) ----------------------------------------
-alertcondition(potential_reversal_signal and is_within_alert_time(), title="Potential Reversal", message="POTENTIAL_REVERSAL\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+// ================================= SYZYGY MOMENTUM PEAK ALERTS =======================================================
+// Alert condition for Syzygy Momentum Peak (strict or potential, long or short) ----------------------------------------
+alertcondition(syzygy_momentum_peak_signal and enable_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

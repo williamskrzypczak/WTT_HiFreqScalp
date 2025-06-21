@@ -1,0 +1,16 @@
+//
+// ---- USER INPUTS ----
+//
+
+// Market Session Settings
+enable_alerts = input.bool(true, "Enable Alerts", group = "Trading Hours", tooltip="Toggle all alerts on or off")
+
+box_amount = input.int(125, 'Amount', step = 10, tooltip = "Set the displayed amount of liquidity zones")
+
+//
+// ---- FUNCTION DEFINITIONS ----
+//
+
+// Check if alerts should be active
+is_active_session() =>
+    enable_alerts 

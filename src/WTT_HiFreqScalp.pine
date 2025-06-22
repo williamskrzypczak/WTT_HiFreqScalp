@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v1.7
+// Revision: v1.9
 //
 // =====================================================================================================================
 //
@@ -14,6 +14,8 @@
 //   v1.5 - Updated signal naming to SYZ_PIVOT_LONG/SHORT, enhanced table labels with "Current Bar Count" prefix.
 //   v1.6 - Rewritten trend pivot alerts to trigger on raw EMA crosses with 3-bar signal cooldown system to prevent signal spam.
 //   v1.7 - Consolidated alerts and trend stats into single table row, updated branding from RV to SMP, eliminated redundant bar count information.
+//   v1.8 - Added pivot signal success tracking system to monitor SYZ_PIVOT_LONG/SHORT signal effectiveness with success rates displayed in table.
+//   v1.9 - Removed pivot signal success tracking, simplified alert display to focus on current trend duration and average bars information.
 //
 // =====================================================================================================================
 //
@@ -81,6 +83,11 @@ reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", mi
 // ==================================== ALERT TIME SETTINGS ============================================================
 // Simple alert on/off toggle
 enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, tooltip="Toggle all alerts on or off")
+
+// ================================== GLOBAL VARIABLES ================================================================
+// Initialize success tracking variables globally ----------------------------------------------------------------
+var float overall_success_ratio = 0.0
+var int total_signals = 0
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -173,11 +180,11 @@ get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
 // Function to determine optimal setup conditions
 get_optimal_setup() =>
     // Initialize setup message and color
-    var string setup_message = "RV Neutral 🇨🇭"
+    var string setup_message = "SMP Neutral 🇨🇭"
     var color setup_color = color.gray
     
     // Create a flashing effect using seconds
-    flash = math.floor(time / 1000) % 2 == 0  // Divide by 1000 to convert milliseconds to seconds
+    flash = math.floor(time / 1000) % 2 == 0
     
     // Check for optimal long setup
     if rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
@@ -198,6 +205,11 @@ get_optimal_setup() =>
     else
         setup_message := "SMP Neutral 🇨🇭"
         setup_color := color.gray
+    
+    // Add success rate to setup message if we have data
+    if total_signals > 0
+        success_interpretation = overall_success_ratio >= 60 ? " (good continuation)" : overall_success_ratio >= 40 ? " (mixed signals)" : " (potential reversal)"
+        setup_message := setup_message + " (" + str.tostring(math.round(overall_success_ratio, 1)) + "% success" + success_interpretation + ")"
     
     [setup_message, setup_color]
 
@@ -272,6 +284,101 @@ potential_momentum_peak_long = rsi_value <= (rsi_oversold * reversal_threshold) 
 potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
 
 syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
+
+// ================================== MOMENTUM PEAK SUCCESS TRACKING ===================================================
+// Track success rate of Syzygy Momentum Peak signals ----------------------------------------------------------------
+var array<int> longMomentumPeakBars = array.new<int>()
+var array<int> shortMomentumPeakBars = array.new<int>()
+var array<bool> longMomentumPeakResults = array.new<bool>()
+var array<bool> shortMomentumPeakResults = array.new<bool>()
+
+// Success tracking parameters
+success_lookback_bars = 10  // How many bars to look ahead for success/failure
+success_threshold_pct = 1.0  // Price movement threshold for success (1%)
+reversal_threshold_pct = 0.5  // Price movement threshold for reversal (0.5%)
+
+// Track new momentum peak signals
+if strict_momentum_peak_long or potential_momentum_peak_long
+    array.push(longMomentumPeakBars, bar_index)
+    // Keep only last 50 signals for rolling analysis
+    if array.size(longMomentumPeakBars) > 50
+        array.shift(longMomentumPeakBars)
+        if array.size(longMomentumPeakResults) > 0
+            array.shift(longMomentumPeakResults)
+
+if strict_momentum_peak_short or potential_momentum_peak_short
+    array.push(shortMomentumPeakBars, bar_index)
+    // Keep only last 50 signals for rolling analysis
+    if array.size(shortMomentumPeakBars) > 50
+        array.shift(shortMomentumPeakBars)
+        if array.size(shortMomentumPeakResults) > 0
+            array.shift(shortMomentumPeakResults)
+
+// Evaluate long momentum peak results
+if array.size(longMomentumPeakBars) > 0
+    for i = 0 to array.size(longMomentumPeakBars) - 1
+        peak_bar = array.get(longMomentumPeakBars, i)
+        bars_since_peak = bar_index - peak_bar
+        
+        // Only evaluate if we have enough bars and haven't evaluated yet
+        if bars_since_peak >= success_lookback_bars and i >= array.size(longMomentumPeakResults)
+            peak_price = close[success_lookback_bars]
+            current_price = close
+            price_change_pct = ((current_price - peak_price) / peak_price) * 100
+            
+            // Determine success (continued up) vs reversal (went down)
+            is_success = price_change_pct >= success_threshold_pct
+            is_reversal = price_change_pct <= -reversal_threshold_pct
+            
+            // Mark as success if continued up, failure if reversed
+            result = is_success ? true : (is_reversal ? false : na)
+            if not na(result)
+                array.push(longMomentumPeakResults, result)
+
+// Evaluate short momentum peak results
+if array.size(shortMomentumPeakBars) > 0
+    for i = 0 to array.size(shortMomentumPeakBars) - 1
+        peak_bar = array.get(shortMomentumPeakBars, i)
+        bars_since_peak = bar_index - peak_bar
+        
+        // Only evaluate if we have enough bars and haven't evaluated yet
+        if bars_since_peak >= success_lookback_bars and i >= array.size(shortMomentumPeakResults)
+            peak_price = close[success_lookback_bars]
+            current_price = close
+            price_change_pct = ((peak_price - current_price) / peak_price) * 100
+            
+            // Determine success (continued down) vs reversal (went up)
+            is_success = price_change_pct >= success_threshold_pct
+            is_reversal = price_change_pct <= -reversal_threshold_pct
+            
+            // Mark as success if continued down, failure if reversed
+            result = is_success ? true : (is_reversal ? false : na)
+            if not na(result)
+                array.push(shortMomentumPeakResults, result)
+
+// Calculate success ratios
+long_success_count = 0
+long_total_count = array.size(longMomentumPeakResults)
+long_success_ratio = 0.0
+if long_total_count > 0
+    for i = 0 to long_total_count - 1
+        if array.get(longMomentumPeakResults, i)
+            long_success_count := long_success_count + 1
+    long_success_ratio := (long_success_count / long_total_count) * 100
+
+short_success_count = 0
+short_total_count = array.size(shortMomentumPeakResults)
+short_success_ratio = 0.0
+if short_total_count > 0
+    for i = 0 to short_total_count - 1
+        if array.get(shortMomentumPeakResults, i)
+            short_success_count := short_success_count + 1
+    short_success_ratio := (short_success_count / short_total_count) * 100
+
+// Overall success ratio
+total_signals := long_total_count + short_total_count
+total_successes = long_success_count + short_success_count
+overall_success_ratio := total_signals > 0 ? (total_successes / total_signals) * 100 : 0.0
 
 // ================================== ALERT STATUS TRACKING ============================================================
 // Create persistent variables to track the last triggered alert and its bar index -------------------------------------
@@ -481,6 +588,7 @@ if show_table
     
     // Combine alerts and trend stats (removed redundant bar count from alert status)
     simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
+    
     combined_alerts_trend = setup_message + " | " + simplified_alert_status + " | Current: " + current_trend_info + " | " + overall_avg_text
     
     table.cell(monitor_table, 0, 3, "Alerts & Trends", text_color=color.white, text_size=size.normal, bgcolor=color.black)

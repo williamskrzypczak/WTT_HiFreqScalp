@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v1.9
+// Revision: v2.2
 //
 // =====================================================================================================================
 //
@@ -16,6 +16,9 @@
 //   v1.7 - Consolidated alerts and trend stats into single table row, updated branding from RV to SMP, eliminated redundant bar count information.
 //   v1.8 - Added pivot signal success tracking system to monitor SYZ_PIVOT_LONG/SHORT signal effectiveness with success rates displayed in table.
 //   v1.9 - Removed pivot signal success tracking, simplified alert display to focus on current trend duration and average bars information.
+//   v2.0 - Added comprehensive pattern analysis system to identify continuation vs reversal patterns for S&P alerts using RSI, ADX, volume, and price position analysis.
+//   v2.1 - Reorganized table display to combine SMP alerts with pattern analysis in dedicated row, separated pivot alerts and trend stats for cleaner interface.
+//   v2.2 - Fixed undeclared identifier error in pattern analysis display, improved logic to only show pattern analysis when SMP signals are active (not neutral).
 //
 // =====================================================================================================================
 //
@@ -207,9 +210,13 @@ get_optimal_setup() =>
         setup_color := color.gray
     
     // Add success rate to setup message if we have data
-    if total_signals > 0
-        success_interpretation = overall_success_ratio >= 60 ? " (good continuation)" : overall_success_ratio >= 40 ? " (mixed signals)" : " (potential reversal)"
-        setup_message := setup_message + " (" + str.tostring(math.round(overall_success_ratio, 1)) + "% success" + success_interpretation + ")"
+    if setup_message == "SMP Neutral 🇨🇭"
+        setup_message := setup_message + " (neutral)"
+    else if total_signals > 0
+        success_interpretation = overall_success_ratio >= 60 ? " (High good continuation)" : overall_success_ratio >= 40 ? " (Med mixed signals)" : " (Low potential reversal)"
+        setup_message := setup_message + success_interpretation
+    else
+        setup_message := setup_message + " (neutral)"
     
     [setup_message, setup_color]
 
@@ -380,6 +387,150 @@ total_signals := long_total_count + short_total_count
 total_successes = long_success_count + short_success_count
 overall_success_ratio := total_signals > 0 ? (total_successes / total_signals) * 100 : 0.0
 
+// ================================== PATTERN ANALYSIS FOR S&P ALERTS ==================================================
+// Analyze patterns that distinguish between trend continuation and reversal signals --------------------------------
+var array<float> signal_rsi_values = array.new<float>()
+var array<float> signal_adx_values = array.new<float>()
+var array<float> signal_volume_ratios = array.new<float>()
+var array<float> signal_price_positions = array.new<float>()
+var array<bool> signal_results = array.new<bool>()
+var array<string> signal_types = array.new<string>()
+
+// Pattern analysis parameters
+pattern_lookback_bars = 5  // Look back 5 bars to analyze signal context
+max_pattern_signals = 100  // Keep last 100 signals for pattern analysis
+
+// Function to calculate price position relative to EMAs
+get_price_position() =>
+    price_above_fast = close > ema1 ? 1 : 0
+    price_above_slow = close > ema2 ? 1 : 0
+    price_above_middle = close > middleEMA ? 1 : 0
+    position_score = price_above_fast + price_above_slow + price_above_middle
+    position_score / 3.0  // Normalize to 0-1 range
+
+// Function to calculate volume ratio
+get_volume_ratio() =>
+    volume / volume_ma
+
+// Track signal patterns when new signals occur
+if strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
+    // Store signal characteristics
+    signal_type = strict_momentum_peak_long or potential_momentum_peak_long ? "LONG" : "SHORT"
+    array.push(signal_types, signal_type)
+    array.push(signal_rsi_values, rsi_value)
+    array.push(signal_adx_values, adx_value)
+    array.push(signal_volume_ratios, get_volume_ratio())
+    array.push(signal_price_positions, get_price_position())
+    
+    // Keep only last max_pattern_signals
+    if array.size(signal_types) > max_pattern_signals
+        array.shift(signal_types)
+        array.shift(signal_rsi_values)
+        array.shift(signal_adx_values)
+        array.shift(signal_volume_ratios)
+        array.shift(signal_price_positions)
+        if array.size(signal_results) > 0
+            array.shift(signal_results)
+
+// Evaluate signal results after pattern_lookback_bars
+if array.size(signal_types) > 0
+    for i = 0 to array.size(signal_types) - 1
+        // Only evaluate if we haven't evaluated this signal yet
+        if i >= array.size(signal_results)
+            signal_type = array.get(signal_types, i)
+            signal_price = close[pattern_lookback_bars]
+            current_price = close
+            price_change_pct = signal_type == "LONG" ? 
+             ((current_price - signal_price) / signal_price) * 100 :
+             ((signal_price - current_price) / signal_price) * 100
+            
+            // Determine if signal was successful (continued in expected direction)
+            is_success = price_change_pct >= 0.5  // 0.5% threshold for success
+            array.push(signal_results, is_success)
+
+// Calculate pattern statistics
+var float avg_rsi_continuation = 0.0
+var float avg_rsi_reversal = 0.0
+var float avg_adx_continuation = 0.0
+var float avg_adx_reversal = 0.0
+var float avg_volume_continuation = 0.0
+var float avg_volume_reversal = 0.0
+var float avg_position_continuation = 0.0
+var float avg_position_reversal = 0.0
+
+// Update pattern statistics
+if array.size(signal_results) >= 10  // Need at least 10 signals for meaningful analysis
+    continuation_count = 0
+    reversal_count = 0
+    continuation_rsi_sum = 0.0
+    reversal_rsi_sum = 0.0
+    continuation_adx_sum = 0.0
+    reversal_adx_sum = 0.0
+    continuation_volume_sum = 0.0
+    reversal_volume_sum = 0.0
+    continuation_position_sum = 0.0
+    reversal_position_sum = 0.0
+    
+    for i = 0 to array.size(signal_results) - 1
+        is_success = array.get(signal_results, i)
+        rsi_val = array.get(signal_rsi_values, i)
+        adx_val = array.get(signal_adx_values, i)
+        volume_ratio = array.get(signal_volume_ratios, i)
+        position = array.get(signal_price_positions, i)
+        
+        if is_success
+            continuation_count := continuation_count + 1
+            continuation_rsi_sum := continuation_rsi_sum + rsi_val
+            continuation_adx_sum := continuation_adx_sum + adx_val
+            continuation_volume_sum := continuation_volume_sum + volume_ratio
+            continuation_position_sum := continuation_position_sum + position
+        else
+            reversal_count := reversal_count + 1
+            reversal_rsi_sum := reversal_rsi_sum + rsi_val
+            reversal_adx_sum := reversal_adx_sum + adx_val
+            reversal_volume_sum := reversal_volume_sum + volume_ratio
+            reversal_position_sum := reversal_position_sum + position
+    
+    // Calculate averages
+    avg_rsi_continuation := continuation_count > 0 ? continuation_rsi_sum / continuation_count : 0.0
+    avg_rsi_reversal := reversal_count > 0 ? reversal_rsi_sum / reversal_count : 0.0
+    avg_adx_continuation := continuation_count > 0 ? continuation_adx_sum / continuation_count : 0.0
+    avg_adx_reversal := reversal_count > 0 ? reversal_adx_sum / reversal_count : 0.0
+    avg_volume_continuation := continuation_count > 0 ? continuation_volume_sum / continuation_count : 0.0
+    avg_volume_reversal := reversal_count > 0 ? reversal_volume_sum / reversal_count : 0.0
+    avg_position_continuation := continuation_count > 0 ? continuation_position_sum / continuation_count : 0.0
+    avg_position_reversal := reversal_count > 0 ? reversal_position_sum / reversal_count : 0.0
+
+// Function to predict signal outcome based on current conditions
+predict_signal_outcome() =>
+    if array.size(signal_results) < 10
+        "Insufficient Data"
+    else
+        // Calculate similarity scores to continuation vs reversal patterns
+        rsi_similarity_continuation = math.abs(rsi_value - avg_rsi_continuation)
+        rsi_similarity_reversal = math.abs(rsi_value - avg_rsi_reversal)
+        adx_similarity_continuation = math.abs(adx_value - avg_adx_continuation)
+        adx_similarity_reversal = math.abs(adx_value - avg_adx_reversal)
+        volume_similarity_continuation = math.abs(get_volume_ratio() - avg_volume_continuation)
+        volume_similarity_reversal = math.abs(get_volume_ratio() - avg_volume_reversal)
+        position_similarity_continuation = math.abs(get_price_position() - avg_position_continuation)
+        position_similarity_reversal = math.abs(get_price_position() - avg_position_reversal)
+        
+        // Weighted similarity score (lower is more similar)
+        continuation_score = (rsi_similarity_continuation * 0.3) + (adx_similarity_continuation * 0.3) + 
+                           (volume_similarity_continuation * 0.2) + (position_similarity_continuation * 0.2)
+        reversal_score = (rsi_similarity_reversal * 0.3) + (adx_similarity_reversal * 0.3) + 
+                     (volume_similarity_reversal * 0.2) + (position_similarity_reversal * 0.2)
+        
+        // Determine prediction
+        if continuation_score < reversal_score
+            "Likely Continuation"
+        else
+            "Likely Reversal"
+
+// Get current pattern analysis
+current_pattern_prediction = predict_signal_outcome()
+
 // ================================== ALERT STATUS TRACKING ============================================================
 // Create persistent variables to track the last triggered alert and its bar index -------------------------------------
 var string lastAlertType = "None"
@@ -515,7 +666,7 @@ if show_table
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 2, rows = 4, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 2, rows = 5, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Header row
@@ -564,9 +715,40 @@ if show_table
     table.cell(monitor_table, 0, 2, "Indicators", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=rsi_gradient_color, text_color=indicators_text_color, text_size=size.normal)
 
+    // Pattern Analysis row
+    pattern_color = current_pattern_prediction == "Likely Continuation" ? color.green : current_pattern_prediction == "Likely Reversal" ? color.red : color.gray
+    pattern_emoji = current_pattern_prediction == "Likely Continuation" ? "📈" : current_pattern_prediction == "Likely Reversal" ? "🔄" : "❓"
+    
+    // Get SMP alert status
+    smp_alert_status = ""
+    if strict_momentum_peak_long or potential_momentum_peak_long
+        smp_alert_status := "SMP Long 🚀"
+    else if strict_momentum_peak_short or potential_momentum_peak_short
+        smp_alert_status := "SMP Short 📉"
+    else
+        smp_alert_status := "SMP Neutral 🇨🇭"
+    
+    // Initialize pattern_display variable
+    var string pattern_display = ""
+    
+    // Combine SMP status with pattern analysis (only show pattern analysis when not neutral)
+    if smp_alert_status == "SMP Neutral 🇨🇭"
+        pattern_display := smp_alert_status
+    else
+        pattern_display := smp_alert_status + " | " + current_pattern_prediction + " " + pattern_emoji
+        if array.size(signal_results) >= 10
+            continuation_rate = 0
+            for i = 0 to array.size(signal_results) - 1
+                if array.get(signal_results, i)
+                    continuation_rate := continuation_rate + 1
+            continuation_rate := (continuation_rate / array.size(signal_results)) * 100
+            pattern_display := pattern_display + " (" + str.tostring(math.round(continuation_rate, 1)) + "% cont)"
+    
+    table.cell(monitor_table, 0, 3, "SMP & Pattern Analysis", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 3, pattern_display, bgcolor=pattern_color, text_color=color.white, text_size=size.normal)
+
     // Consolidated Alerts and Trend Stats row
     [setup_message, setup_color] = get_optimal_setup()
-    alert_status_message = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType + " (" + str.tostring(barsSinceLastAlert) + " bars ago)"
     
     // Trend stats
     current_trend_info = currentTrendDirection != "None" ? str.tostring(currentTrendDuration) + " bars" : "0 bars"
@@ -586,13 +768,13 @@ if show_table
     base_trend_color = currentTrendDirection == "Long" ? color.green : currentTrendDirection == "Short" ? color.red : color.gray
     trend_color = exceeds_average and flash ? color.orange : base_trend_color
     
-    // Combine alerts and trend stats (removed redundant bar count from alert status)
+    // Combine alerts and trend stats (removed SMP info since it's now in pattern analysis)
     simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
     
-    combined_alerts_trend = setup_message + " | " + simplified_alert_status + " | Current: " + current_trend_info + " | " + overall_avg_text
+    combined_alerts_trend = simplified_alert_status + " | Current: " + current_trend_info + " | " + overall_avg_text
     
-    table.cell(monitor_table, 0, 3, "Alerts & Trends", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 3, combined_alerts_trend, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
+    table.cell(monitor_table, 0, 4, "Alerts & Trends", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 4, combined_alerts_trend, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
 
 // ========================================== ALERTS ===================================================================
 

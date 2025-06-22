@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v1.6
+// Revision: v1.7
 //
 // =====================================================================================================================
 //
@@ -13,6 +13,7 @@
 //   v1.4 - Added orange flashing alert when current trend duration exceeds historical average, simplified trend stats display.
 //   v1.5 - Updated signal naming to SYZ_PIVOT_LONG/SHORT, enhanced table labels with "Current Bar Count" prefix.
 //   v1.6 - Rewritten trend pivot alerts to trigger on raw EMA crosses with 3-bar signal cooldown system to prevent signal spam.
+//   v1.7 - Consolidated alerts and trend stats into single table row, updated branding from RV to SMP, eliminated redundant bar count information.
 //
 // =====================================================================================================================
 //
@@ -195,7 +196,7 @@ get_optimal_setup() =>
         setup_message := "Syzygy Momentum Peak Short ⚡"
         setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     else
-        setup_message := "RV Neutral 🇨🇭"
+        setup_message := "SMP Neutral 🇨🇭"
         setup_color := color.gray
     
     [setup_message, setup_color]
@@ -407,7 +408,7 @@ if show_table
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 2, rows = 5, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 2, rows = 4, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Header row
@@ -456,19 +457,13 @@ if show_table
     table.cell(monitor_table, 0, 2, "Indicators", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 2, combined_indicators, bgcolor=rsi_gradient_color, text_color=indicators_text_color, text_size=size.normal)
 
-    // Combined Reversal Status and Last Alert row
+    // Consolidated Alerts and Trend Stats row
     [setup_message, setup_color] = get_optimal_setup()
     alert_status_message = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType + " (" + str.tostring(barsSinceLastAlert) + " bars ago)"
-    combined_status = setup_message + " | " + alert_status_message
-    table.cell(monitor_table, 0, 3, "Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    // Set alert background color based on last alert type
-    alert_bgcolor = lastAlertType == "SYZ_PIVOT_SHORT" ? color.maroon : lastAlertType == "SYZ_PIVOT_LONG" ? color.teal : rsi_gradient_color
-    table.cell(monitor_table, 1, 3, combined_status, text_color=color.white, bgcolor=alert_bgcolor, text_size=size.normal)
-
-    // Combined Trend Duration Statistics row
+    
+    // Trend stats
     current_trend_info = currentTrendDirection != "None" ? str.tostring(currentTrendDuration) + " bars" : "0 bars"
     overall_avg_text = totalTrends > 0 ? "Avg: " + str.tostring(math.round(avgOverallTrendDuration, 1)) + " bars" : "No data"
-    combined_trend_info = current_trend_info + " | " + overall_avg_text
     
     // Determine if current trend exceeds average and apply flashing effect
     exceeds_average = false
@@ -484,8 +479,12 @@ if show_table
     base_trend_color = currentTrendDirection == "Long" ? color.green : currentTrendDirection == "Short" ? color.red : color.gray
     trend_color = exceeds_average and flash ? color.orange : base_trend_color
     
-    table.cell(monitor_table, 0, 4, "Trend Pivot Stats", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 4, "Current Bar Count: " + combined_trend_info, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
+    // Combine alerts and trend stats (removed redundant bar count from alert status)
+    simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
+    combined_alerts_trend = setup_message + " | " + simplified_alert_status + " | Current: " + current_trend_info + " | " + overall_avg_text
+    
+    table.cell(monitor_table, 0, 3, "Alerts & Trends", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 3, combined_alerts_trend, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
 
 // ========================================== ALERTS ===================================================================
 

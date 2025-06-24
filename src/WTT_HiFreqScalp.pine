@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.3
+// Revision: v2.5
 //
 // =====================================================================================================================
 //
@@ -20,6 +20,8 @@
 //   v2.1 - Reorganized table display to combine SMP alerts with pattern analysis in dedicated row, separated pivot alerts and trend stats for cleaner interface.
 //   v2.2 - Fixed undeclared identifier error in pattern analysis display, improved logic to only show pattern analysis when SMP signals are active (not neutral).
 //   v2.3 - Removed pattern analysis system and reverted table to 4 rows, simplified display to focus on core functionality.
+//   v2.4 - Removed unused variables, functions, and RSI alert variables to clean up code and improve performance.
+//   v2.5 - Added SMP alert tracking with previous alert history in table display, enhanced SMP alert message with volume and time data, restored RSI overbought/oversold visual indicators.
 //
 // =====================================================================================================================
 //
@@ -60,7 +62,6 @@ ema3_length = trading_style == "Scalping" ? 8 : trading_style == "Day Trading" ?
 
 // =================================== VOLUME FILTER SETTINGS ==========================================================
 // Volume parameters for signal filtering - dynamically set based on trading style -------------------------------------
-use_volume_filter = input.bool(true, title="Enable Volume Filter", group=GROUP_VOLUME)
 volume_ma_length = trading_style == "Scalping" ? 20 : trading_style == "Day Trading" ? 20 : trading_style == "Swing Trading" ? 30 : input.int(20, title="Volume MA Length", minval=1, group=GROUP_VOLUME)
 volume_multiplier = trading_style == "Scalping" ? 2.0 : trading_style == "Day Trading" ? 1.5 : trading_style == "Swing Trading" ? 1.3 : input.float(1.5, title="Volume Multiplier", minval=0.1, step=0.1, group=GROUP_VOLUME)
 
@@ -130,32 +131,6 @@ determine_price_line_color(price, fast_ema, slow_ema, middle_ema) =>
     else
         defaultPriceColor  // Default color when no specific condition is met -----------------------------------------
 
-// Enhanced signal logic with trend direction filter -------------------------------------------------------------------
-is_trend_aligned_long() =>
-    if trading_style == "Scalping"
-        plus_di > minus_di  // Require trend alignment for scalping ----------------------------------------------------
-    else if trading_style == "Day Trading"
-        true  // More flexible for day trading -------------------------------------------------------------------------
-    else
-        true  // Swing trading - trend alignment helpful but not required ----------------------------------------------
-
-is_trend_aligned_short() =>
-    if trading_style == "Scalping"
-        minus_di > plus_di  // Require trend alignment for scalping ----------------------------------------------------
-    else if trading_style == "Day Trading"
-        true  // More flexible for day trading -------------------------------------------------------------------------
-    else
-        true  // Swing trading - trend alignment helpful but not required ----------------------------------------------
-
-// Enhanced ADX filter based on trading style --------------------------------------------------------------------------
-is_adx_favorable() =>
-    if trading_style == "Scalping"
-        adx_value > adx_threshold  // Require strong trend for scalping ------------------------------------------------
-    else if trading_style == "Day Trading"
-        adx_value > (adx_threshold * 0.75)  // Slightly more flexible --------------------------------------------------
-    else
-        adx_value > (adx_threshold * 0.6)  // Most flexible for swing trading ------------------------------------------
-
 // Function to calculate color brightness (0-255) ----------------------------------------------------------------------
 get_color_brightness(r, g, b) =>
     // Using perceived brightness formula: (0.299*R + 0.587*G + 0.114*B)
@@ -221,43 +196,6 @@ get_optimal_setup() =>
     
     [setup_message, setup_color]
 
-// Creates a color gradient from light gray to dark orange based on a value
-// Used for ADX visualization
-get_adx_gradient_color(value, min_value, max_value) =>
-    // Normalize value to 0-1 range
-    normalized = math.max(0, math.min(1, (value - min_value) / (max_value - min_value)))
-    
-    // Transition from light gray to dark orange
-    r = math.round(220 + (normalized * 35))  // 220 to 255
-    g = math.round(220 - (normalized * 100))  // 220 to 120
-    b = math.round(220 - (normalized * 220))  // 220 to 0
-    
-    color.rgb(r, g, b)
-
-// Creates a color gradient from white to blood orange based on volume ratio
-// Used for volume visualization in the table
-get_volume_gradient_color(current_vol, volume_ma, volume_multiplier) =>
-    // Calculate the volume ratio (current volume / average volume)
-    volume_ratio = current_vol / volume_ma
-    
-    // Define thresholds for color transitions
-    low_threshold = 0.5        // Below this = white
-    high_threshold = volume_multiplier  // At/above this = blood orange
-    
-    if volume_ratio <= low_threshold
-        // Low volume: white
-        color.rgb(255, 255, 255)
-    else if volume_ratio <= high_threshold
-        // Transition from white to blood orange
-        normalized = (volume_ratio - low_threshold) / (high_threshold - low_threshold)
-        r = math.round(255)  // Stay at 255
-        g = math.round(255 - (normalized * 100))  // 255 to 155
-        b = math.round(255 - (normalized * 255))  // 255 to 0
-        color.rgb(r, g, b)
-    else
-        // High volume: blood orange
-        color.rgb(255, 155, 0)
-
 // ===================================== SIGNAL GENERATION =============================================================
 
 // Primary trading signals ---------------------------------------------------------------------------------------------
@@ -282,6 +220,8 @@ if shortSignalActive
 // Overbought/Oversold conditions --------------------------------------------------------------------------------------
 isOverbought = rsi_value > rsi_overbought
 isOversold = rsi_value < rsi_oversold
+
+// RSI overbought/oversold visual indicators (for chart display only)
 rsiOverboughtAlert = isOverbought[1] and ta.crossunder(rsi_value, rsi_overbought)
 rsiOversoldAlert = isOversold[1] and ta.crossover(rsi_value, rsi_oversold)
 
@@ -365,33 +305,30 @@ if array.size(shortMomentumPeakBars) > 0
                 array.push(shortMomentumPeakResults, result)
 
 // Calculate success ratios
-long_success_count = 0
 long_total_count = array.size(longMomentumPeakResults)
-long_success_ratio = 0.0
-if long_total_count > 0
-    for i = 0 to long_total_count - 1
-        if array.get(longMomentumPeakResults, i)
-            long_success_count := long_success_count + 1
-    long_success_ratio := (long_success_count / long_total_count) * 100
-
-short_success_count = 0
 short_total_count = array.size(shortMomentumPeakResults)
-short_success_ratio = 0.0
-if short_total_count > 0
-    for i = 0 to short_total_count - 1
-        if array.get(shortMomentumPeakResults, i)
-            short_success_count := short_success_count + 1
-    short_success_ratio := (short_success_count / short_total_count) * 100
 
 // Overall success ratio
 total_signals := long_total_count + short_total_count
-total_successes = long_success_count + short_success_count
+total_successes = 0
+if long_total_count > 0
+    for i = 0 to long_total_count - 1
+        if array.get(longMomentumPeakResults, i)
+            total_successes := total_successes + 1
+if short_total_count > 0
+    for i = 0 to short_total_count - 1
+        if array.get(shortMomentumPeakResults, i)
+            total_successes := total_successes + 1
 overall_success_ratio := total_signals > 0 ? (total_successes / total_signals) * 100 : 0.0
 
 // ================================== ALERT STATUS TRACKING ============================================================
 // Create persistent variables to track the last triggered alert and its bar index -------------------------------------
 var string lastAlertType = "None"
 var int lastAlertBarIndex = 0
+
+// SMP alert tracking variables
+var string lastSMPAlertType = "None"
+var int lastSMPAlertBarIndex = 0
 
 // Update alert status based on conditions - track all signal types ---------------------------------------------------
 if longSignalActive
@@ -401,8 +338,23 @@ else if shortSignalActive
     lastAlertType := "SYZ_PIVOT_SHORT"
     lastAlertBarIndex := bar_index
 
+// Update SMP alert status based on conditions
+if strict_momentum_peak_long
+    lastSMPAlertType := "SMP_LONG_STRONG"
+    lastSMPAlertBarIndex := bar_index
+else if strict_momentum_peak_short
+    lastSMPAlertType := "SMP_SHORT_STRONG"
+    lastSMPAlertBarIndex := bar_index
+else if potential_momentum_peak_long
+    lastSMPAlertType := "SMP_LONG_WEAK"
+    lastSMPAlertBarIndex := bar_index
+else if potential_momentum_peak_short
+    lastSMPAlertType := "SMP_SHORT_WEAK"
+    lastSMPAlertBarIndex := bar_index
+
 // Calculate bars since last alert -------------------------------------------------------------------------------------
 barsSinceLastAlert = bar_index == lastAlertBarIndex ? 1 : bar_index - lastAlertBarIndex
+barsSinceLastSMPAlert = bar_index == lastSMPAlertBarIndex ? 1 : bar_index - lastSMPAlertBarIndex
 
 // ================================== TREND DURATION TRACKING ==========================================================
 // Track trend duration statistics for signal analysis ----------------------------------------------------------------
@@ -575,8 +527,15 @@ if show_table
     // SMP Alerts row
     [setup_message, setup_color] = get_optimal_setup()
     
+    // Create SMP alert status with previous alert info
+    smp_alert_status = lastSMPAlertType == "None" ? "No SMP Alerts" : barsSinceLastSMPAlert == 0 ? lastSMPAlertType + " 🟡 LIVE" : lastSMPAlertType
+    smp_bars_info = lastSMPAlertType != "None" ? " | " + str.tostring(barsSinceLastSMPAlert) + " bars ago" : ""
+    
+    // Combine current setup with previous alert info
+    smp_combined_info = setup_message + " | Last: " + smp_alert_status + smp_bars_info
+    
     table.cell(monitor_table, 0, 3, "SMP Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 3, setup_message, text_color=color.white, bgcolor=setup_color, text_size=size.normal)
+    table.cell(monitor_table, 1, 3, smp_combined_info, text_color=color.white, bgcolor=setup_color, text_size=size.normal)
 
     // Pivot Alerts & Trends row
     simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
@@ -595,7 +554,7 @@ if show_table
     flash = math.floor(time / 1000) % 2 == 0
     
     // Set trend color with flashing effect when exceeding average
-    base_trend_color = currentTrendDirection == "Long" ? color.green : currentTrendDirection == "Short" ? color.red : color.gray
+    base_trend_color = currentTrendDirection == "Long" ? color.teal : currentTrendDirection == "Short" ? color.maroon : color.gray
     trend_color = exceeds_average and flash ? color.orange : base_trend_color
     
     combined_pivot_trends = simplified_alert_status + " | Current: " + current_trend_info + " | " + overall_avg_text
@@ -610,6 +569,6 @@ alertcondition(longSignalActive and enable_alerts, title="Syzygy Pivot Long", me
 alertcondition(shortSignalActive and enable_alerts, title="Syzygy Pivot Short", message="SYZ_PIVOT_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= SYZYGY MOMENTUM PEAK ALERTS =======================================================
-// Alert condition for Syzygy Momentum Peak (strict or potential, long or short) ----------------------------------------
-alertcondition(syzygy_momentum_peak_signal and enable_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+// Alert condition for Syzygy Momentum Peak with enhanced descriptive message -----------------------------------------
+alertcondition(syzygy_momentum_peak_signal and enable_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nSignal: Momentum Peak (Long/Short, Strong/Weak)\nVolume: {{volume}}\nTime: {{time}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

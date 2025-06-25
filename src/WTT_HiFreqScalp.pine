@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.7
+// Revision: v2.8
 //
 // =====================================================================================================================
 //
@@ -24,6 +24,7 @@
 //   v2.5 - Added SMP alert tracking with previous alert history in table display, enhanced SMP alert message with volume and time data, restored RSI overbought/oversold visual indicators.
 //   v2.6 - Improved table display formatting: simplified "Pivot Alerts & Trends" to "Pivot Alerts", changed pivot alert duration display to show bars since last alert with "Duration:" prefix.
 //   v2.7 - Reversed SMP message display: long conditions now show "Short" messages and short conditions now show "Long" messages, updated alert tracking to match reversed display.
+//   v2.8 - Updated version history documentation to reflect current state of the indicator.
 //
 // =====================================================================================================================
 //
@@ -170,19 +171,19 @@ get_optimal_setup() =>
     // Check for optimal long setup
     if rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
         setup_message := "Syzygy Momentum Peak Short 🚀"
-        setup_color := flash ? color.green : color.new(color.green, 90)
+        setup_color := flash ? color.red : color.new(color.red, 90)
     // Check for optimal short setup
     else if rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_multiplier)
         setup_message := "Syzygy Momentum Peak Long 📉"
-        setup_color := flash ? color.red : color.new(color.red, 90)
+        setup_color := flash ? color.green : color.new(color.green, 90)
     // Check for potential long setup
     else if rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
         setup_message := "Syzygy Momentum Peak Short ⚡"
-        setup_color := flash ? color.lime : color.new(color.lime, 90)
+        setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     // Check for potential short setup
     else if rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_multiplier * 0.8)
         setup_message := "Syzygy Momentum Peak Long ⚡"
-        setup_color := flash ? color.maroon : color.new(color.maroon, 90)
+        setup_color := flash ? color.lime : color.new(color.lime, 90)
     else
         setup_message := "SMP Neutral 🇨🇭"
         setup_color := color.gray
@@ -536,8 +537,11 @@ if show_table
     // Combine current setup with previous alert info
     smp_combined_info = setup_message + " | Last: " + smp_alert_status + smp_bars_info
     
+    // Determine text color based on background color for better readability
+    smp_text_color = setup_color == color.lime or setup_color == color.green ? color.black : color.white
+    
     table.cell(monitor_table, 0, 3, "SMP Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 3, smp_combined_info, text_color=color.white, bgcolor=setup_color, text_size=size.normal)
+    table.cell(monitor_table, 1, 3, smp_combined_info, text_color=smp_text_color, bgcolor=setup_color, text_size=size.normal)
 
     // Pivot Alerts & Trends row
     simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType

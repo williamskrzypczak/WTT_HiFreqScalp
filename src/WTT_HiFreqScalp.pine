@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.1
+// Revision: v2.3
 //
 // =====================================================================================================================
 //
@@ -23,6 +23,8 @@
 //   v1.14 - Reversed SMP message display: long conditions now show "Short" messages and short conditions now show "Long" messages, updated alert tracking to match reversed display.
 //   v2.0 - Removed "Long" and "Short" words from SMP alert messages and status tracking for cleaner, more concise display in table interface.
 //   v2.1 - Performance optimizations: eliminated O(n²) nested loops in success tracking, optimized array operations with array.sum(), cached expensive calculations, and reduced redundant operations in table display for 40-60% performance improvement.
+//   v2.2 - Enhanced SMP visual indicators: added text labels "S" and "W" to yellow dots to distinguish between strong and weak Syzygy Momentum Peak signals for improved chart analysis.
+//   v2.3 - Improved SMP visual hierarchy: strong signals (S) now use larger size for better prominence, while weak signals (W) use smaller size for cleaner chart display and easier signal prioritization.
 //
 // =====================================================================================================================
 //
@@ -458,9 +460,11 @@ if shortSignalActive
     line.new(bar_index, 0, bar_index, 0, extend=extend.both, 
          color=color.gray, width=1, style=line.style_dotted)
 
-// Plot a yellow dot below the price for long reversals and above the price for short reversals
-plotshape(strict_momentum_peak_long or potential_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.small, title="Long Momentum Peak")
-plotshape(strict_momentum_peak_short or potential_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.small, title="Short Momentum Peak")
+// Plot SMP dots with text labels indicating strength
+plotshape(strict_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.normal, title="Strong Long Momentum Peak", text="S", textcolor=color.white)
+plotshape(potential_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.tiny, title="Weak Long Momentum Peak", text="W", textcolor=color.white)
+plotshape(strict_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.normal, title="Strong Short Momentum Peak", text="S", textcolor=color.white)
+plotshape(potential_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak", text="W", textcolor=color.white)
 
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 

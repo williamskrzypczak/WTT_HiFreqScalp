@@ -461,10 +461,10 @@ if shortSignalActive
          color=color.gray, width=1, style=line.style_dotted)
 
 // Plot SMP dots with text labels indicating strength
-plotshape(strict_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.normal, title="Strong Long Momentum Peak", text="S", textcolor=color.white)
-plotshape(potential_momentum_peak_long, location=location.belowbar, color=color.yellow, style=shape.circle, size=size.tiny, title="Weak Long Momentum Peak", text="W", textcolor=color.white)
-plotshape(strict_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.normal, title="Strong Short Momentum Peak", text="S", textcolor=color.white)
-plotshape(potential_momentum_peak_short, location=location.abovebar, color=color.yellow, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak", text="W", textcolor=color.white)
+plotshape(strict_momentum_peak_long, location=location.belowbar, color=#dec20b, style=shape.circle, size=size.small, title="Strong Long Momentum Peak")
+plotshape(potential_momentum_peak_long, location=location.belowbar, color=#7371df, style=shape.circle, size=size.tiny, title="Weak Long Momentum Peak")
+plotshape(strict_momentum_peak_short, location=location.abovebar, color=#dec20b, style=shape.circle, size=size.small, title="Strong Short Momentum Peak")
+plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371df, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak")
 
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 

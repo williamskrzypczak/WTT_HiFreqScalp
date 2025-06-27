@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WTT_HiFreqScalp Trading Indicator Documentation</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0.5in;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.4;
+            color: #333;
+            margin: 0;
+            padding: 15px;
+            background: white;
+            font-size: 11px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 20px;
+            margin: 0 0 5px 0;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+            text-align: center;
+        }
+        h2 {
+            color: #34495e;
+            font-size: 14px;
+            margin: 15px 0 8px 0;
+            border-left: 3px solid #3498db;
+            padding-left: 8px;
+        }
+        h3 {
+            color: #2c3e50;
+            font-size: 12px;
+            margin: 10px 0 5px 0;
+        }
+        .header-info {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #7f8c8d;
+            font-size: 11px;
+        }
+        .subtitle {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ecf0f1;
+            margin: 12px 0;
+        }
+        ul, ol {
+            margin: 5px 0 5px 15px;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 2px;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 10px 0;
+        }
+        .signal-guide {
+            background: #e8f4fd;
+            padding: 8px;
+            border-radius: 5px;
+            margin: 8px 0;
+            font-size: 10px;
+        }
+        .signal-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .signal-emoji {
+            font-size: 14px;
+            margin-right: 6px;
+            min-width: 20px;
+        }
+        .tech-specs {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 5px;
+            margin: 8px 0;
+            font-size: 10px;
+        }
+        .tech-specs table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+        }
+        .tech-specs th, .tech-specs td {
+            padding: 3px 5px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .tech-specs th {
+            background: #3498db;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+        }
+        .version-evolution {
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 5px;
+            margin: 8px 0;
+            border-left: 3px solid #ffc107;
+            font-size: 10px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 8px;
+            border-top: 1px solid #ecf0f1;
+            color: #7f8c8d;
+            font-style: italic;
+            font-size: 10px;
+        }
+        .strong {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .compact-section {
+            margin-bottom: 10px;
+        }
+        .compact-list {
+            margin: 3px 0 3px 15px;
+        }
+        .compact-list li {
+            margin-bottom: 1px;
+        }
+    </style>
+</head>
+<body>
+    <h1>WTT_HiFreqScalp Trading Indicator</h1>
+    <div class="subtitle">Professional High-Frequency Scalp Trading System v2.3</div>
+    <div class="header-info"><strong>© William Skrzypczak | Waverider Trading Technologies</strong></div>
+
+    <div class="two-column">
+        <div>
+            <h2>Core Functionality</h2>
+            <ul class="compact-list">
+                <li><strong>EMA Crossovers:</strong> Super Fast vs Middle EMA signals</li>
+                <li><strong>SMP System:</strong> RSI + ADX + Volume momentum detection</li>
+                <li><strong>Smart Filtering:</strong> 3-bar cooldown + volume filters</li>
+                <li><strong>Performance Tracking:</strong> Success rates & trend duration</li>
+                <li><strong>Visual Intelligence:</strong> Color-coded signals & strength labels</li>
+            </ul>
+
+            <h2>Quick Start Guide</h2>
+            <ol class="compact-list">
+                <li><strong>Install:</strong> Add as overlay indicator to TradingView</li>
+                <li><strong>Style:</strong> Choose preset (Scalping/Day/Swing/Custom)</li>
+                <li><strong>Configure:</strong> Toggle EMAs and table position</li>
+                <li><strong>Monitor:</strong> Use on-chart table for real-time data</li>
+            </ol>
+
+            <h2>Signal Interpretation</h2>
+            <div class="signal-guide">
+                <div class="signal-item"><span class="signal-emoji">🟢</span><span><strong>Green Triangles:</strong> Long signals (B)</span></div>
+                <div class="signal-item"><span class="signal-emoji">⚪</span><span><strong>White Triangles:</strong> Short signals (S)</span></div>
+                <div class="signal-item"><span class="signal-emoji">🟡</span><span><strong>Golden Dots:</strong> Strong SMP (medium size)</span></div>
+                <div class="signal-item"><span class="signal-emoji">🟣</span><span><strong>Purple Dots:</strong> Weak SMP (small size)</span></div>
+                <div class="signal-item"><span class="signal-emoji">📊</span><span><strong>Price Line:</strong> Trend direction</span></div>
+            </div>
+        </div>
+
+        <div>
+            <h2>Key Features</h2>
+            <ul class="compact-list">
+                <li><strong>4 Trading Modes:</strong> Scalping, Day, Swing, Custom</li>
+                <li><strong>Real-time Dashboard:</strong> RSI, ADX, Volume monitoring</li>
+                <li><strong>Alert System:</strong> Global toggle + customizable alerts</li>
+                <li><strong>Trend Analysis:</strong> Duration tracking + averages</li>
+                <li><strong>Success Tracking:</strong> SMP effectiveness analysis</li>
+                <li><strong>Color-Coded Signals:</strong> Golden (strong) vs Purple (weak) SMP dots</li>
+            </ul>
+
+            <h2>Technical Specs</h2>
+            <div class="tech-specs">
+                <table>
+                    <tr><th>Platform</th><td>TradingView Pine Script v5</td></tr>
+                    <tr><th>Type</th><td>Overlay indicator</td></tr>
+                    <tr><th>Signals</th><td>EMA + Momentum detection</td></tr>
+                    <tr><th>Performance</th><td>40-60% faster execution</td></tr>
+                    <tr><th>Compatibility</th><td>All timeframes & instruments</td></tr>
+                </table>
+            </div>
+
+            <h2>Version Evolution</h2>
+            <div class="version-evolution">
+                <div class="strong">v1.0-1.7:</div> Core EMA system & alerts<br>
+                <div class="strong">v1.8-1.14:</div> SMP system & interface<br>
+                <div class="strong">v2.0-2.1:</div> Performance optimization<br>
+                <div class="strong">v2.2-2.3:</div> Visual hierarchy & color coding
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="two-column">
+        <div>
+            <h2>Table Monitoring</h2>
+            <ul class="compact-list">
+                <li><strong>Alerts & Style:</strong> Status + trading mode</li>
+                <li><strong>Indicators:</strong> RSI, ADX, Volume, Trend</li>
+                <li><strong>SMP Alerts:</strong> Setup + success rate</li>
+                <li><strong>Pivot Alerts:</strong> History + duration stats</li>
+            </ul>
+
+            <h2>Ideal Use Cases</h2>
+            <ul class="compact-list">
+                <li>High-frequency scalp trading</li>
+                <li>Intraday momentum trading</li>
+                <li>Trend-following strategies</li>
+                <li>Professional environments</li>
+            </ul>
+        </div>
+
+        <div>
+            <h2>Risk Management</h2>
+            <ul class="compact-list">
+                <li>Multiple signal confirmation</li>
+                <li>Volume filtering</li>
+                <li>Success rate tracking</li>
+                <li>Trend duration analysis</li>
+            </ul>
+
+            <h2>Alert Types</h2>
+            <ul class="compact-list">
+                <li><strong>SYZ_PIVOT_LONG:</strong> Long entry signals</li>
+                <li><strong>SYZ_PIVOT_SHORT:</strong> Short entry signals</li>
+                <li><strong>SMP Alerts:</strong> Momentum peak signals</li>
+                <li><strong>Global Toggle:</strong> Enable/disable all</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <em>For technical support and updates, visit the Waverider Trading Technologies repository.</em>
+    </div>
+</body>
+</html> 

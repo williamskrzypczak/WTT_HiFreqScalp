@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.5
+// Revision: v2.7
 //
 // =====================================================================================================================
 //
@@ -27,6 +27,8 @@
 //   v2.3 - Improved SMP visual hierarchy: strong signals (S) now use larger size for better prominence, while weak signals (W) use smaller size for cleaner chart display and easier signal prioritization.
 //   v2.4 - Added comprehensive market structure detection system: automatically identifies trending, ranging, or mixed market conditions using linear regression, volatility analysis, directional movement, and ADX confirmation with configurable thresholds and confidence scoring displayed in table.
 //   v2.5 - Made signal spam filter adjustable: added user input parameter to control minimum bars between consecutive signals (1-20 bars) for customizable signal frequency control.
+//   v2.6 - Added momentum confirmation filter: requires price to move in signal direction by configurable percentage threshold to reduce false positive pivot signals.
+//   v2.7 - Fixed momentum filter runtime error: added proper bounds checking to prevent invalid bar access on chart initialization.
 //
 // =====================================================================================================================
 //
@@ -98,6 +100,11 @@ enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, 
 // ==================================== SIGNAL FILTER SETTINGS =========================================================
 // Signal spam prevention settings
 minBarsBetweenSignals = input.int(3, title="Signal Spam Filter (Bars)", minval=1, maxval=20, group=GROUP_ALERT_TIME, tooltip="Minimum bars between consecutive signals of the same type to prevent spam")
+
+// Momentum confirmation filter settings
+enable_momentum_filter = input.bool(true, title="Enable Momentum Filter", group=GROUP_ALERT_TIME, tooltip="Require price momentum confirmation after EMA crossover to reduce false signals")
+momentum_lookback = input.int(3, title="Momentum Lookback (Bars)", minval=1, maxval=10, group=GROUP_ALERT_TIME, tooltip="Number of bars to check for momentum confirmation after signal")
+momentum_threshold = input.float(0.1, title="Momentum Threshold (%)", minval=0.05, maxval=1.0, step=0.05, group=GROUP_ALERT_TIME, tooltip="Minimum price movement percentage required for momentum confirmation")
 
 // ================================== TREND VS RANGE DETECTION ========================================================
 // Market structure detection parameters ------------------------------------------------------------------------------
@@ -361,9 +368,23 @@ shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast
 var int lastLongSignalBar = 0
 var int lastShortSignalBar = 0
 
-// Enhanced pivot signals with cooldown and basic filters ----------------------------------------------------------------
-longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals)
-shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals)
+// Momentum confirmation filter function
+check_momentum_confirmation(signal_bar, direction) =>
+    if not enable_momentum_filter or bar_index < momentum_lookback
+        true
+    else
+        signal_price = close[momentum_lookback]
+        current_price = close
+        price_change_pct = direction == "long" ? 
+            ((current_price - signal_price) / signal_price) * 100 :
+            ((signal_price - current_price) / signal_price) * 100
+        
+        // Check if price moved in the expected direction by the threshold amount
+        price_change_pct >= momentum_threshold
+
+// Enhanced pivot signals with cooldown and momentum filters ----------------------------------------------------------------
+longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_momentum_confirmation(0, "long")
+shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_momentum_confirmation(0, "short")
 
 // Update signal bar tracking -------------------------------------------------------------------------------------------
 if longSignalActive

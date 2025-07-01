@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.4
+// Revision: v2.5
 //
 // =====================================================================================================================
 //
@@ -26,6 +26,7 @@
 //   v2.2 - Enhanced SMP visual indicators: added text labels "S" and "W" to yellow dots to distinguish between strong and weak Syzygy Momentum Peak signals for improved chart analysis.
 //   v2.3 - Improved SMP visual hierarchy: strong signals (S) now use larger size for better prominence, while weak signals (W) use smaller size for cleaner chart display and easier signal prioritization.
 //   v2.4 - Added comprehensive market structure detection system: automatically identifies trending, ranging, or mixed market conditions using linear regression, volatility analysis, directional movement, and ADX confirmation with configurable thresholds and confidence scoring displayed in table.
+//   v2.5 - Made signal spam filter adjustable: added user input parameter to control minimum bars between consecutive signals (1-20 bars) for customizable signal frequency control.
 //
 // =====================================================================================================================
 //
@@ -93,6 +94,10 @@ reversal_threshold = input.float(0.85, title="Reversal Threshold Multiplier", mi
 // ==================================== ALERT TIME SETTINGS ============================================================
 // Simple alert on/off toggle
 enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, tooltip="Toggle all alerts on or off")
+
+// ==================================== SIGNAL FILTER SETTINGS =========================================================
+// Signal spam prevention settings
+minBarsBetweenSignals = input.int(3, title="Signal Spam Filter (Bars)", minval=1, maxval=20, group=GROUP_ALERT_TIME, tooltip="Minimum bars between consecutive signals of the same type to prevent spam")
 
 // ================================== TREND VS RANGE DETECTION ========================================================
 // Market structure detection parameters ------------------------------------------------------------------------------
@@ -355,7 +360,6 @@ shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast
 // Signal cooldown system to prevent signal spam ----------------------------------------------------------------
 var int lastLongSignalBar = 0
 var int lastShortSignalBar = 0
-minBarsBetweenSignals = 3
 
 // Enhanced pivot signals with cooldown and basic filters ----------------------------------------------------------------
 longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals)

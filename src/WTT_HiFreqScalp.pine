@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v2.7
+// Revision: v3.1
 //
 // =====================================================================================================================
 //
@@ -29,6 +29,10 @@
 //   v2.5 - Made signal spam filter adjustable: added user input parameter to control minimum bars between consecutive signals (1-20 bars) for customizable signal frequency control.
 //   v2.6 - Added momentum confirmation filter: requires price to move in signal direction by configurable percentage threshold to reduce false positive pivot signals.
 //   v2.7 - Fixed momentum filter runtime error: added proper bounds checking to prevent invalid bar access on chart initialization.
+//   v2.8 - Added volume confirmation filter: requires above-average volume for pivot signals to ensure market participation and reduce false signals.
+//   v2.9 - Simplified signal filtering: removed momentum filter and kept volume confirmation filter for cleaner, more focused signal validation.
+//   v3.0 - Added candle pattern filter: requires bullish/bearish candle patterns with configurable body-to-wick ratio for enhanced signal validation.
+//   v3.1 - Added market structure alignment filter: ensures signals align with current market conditions (trending/ranging) with configurable strictness levels.
 //
 // =====================================================================================================================
 //
@@ -101,10 +105,19 @@ enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, 
 // Signal spam prevention settings
 minBarsBetweenSignals = input.int(3, title="Signal Spam Filter (Bars)", minval=1, maxval=20, group=GROUP_ALERT_TIME, tooltip="Minimum bars between consecutive signals of the same type to prevent spam")
 
-// Momentum confirmation filter settings
-enable_momentum_filter = input.bool(true, title="Enable Momentum Filter", group=GROUP_ALERT_TIME, tooltip="Require price momentum confirmation after EMA crossover to reduce false signals")
-momentum_lookback = input.int(3, title="Momentum Lookback (Bars)", minval=1, maxval=10, group=GROUP_ALERT_TIME, tooltip="Number of bars to check for momentum confirmation after signal")
-momentum_threshold = input.float(0.1, title="Momentum Threshold (%)", minval=0.05, maxval=1.0, step=0.05, group=GROUP_ALERT_TIME, tooltip="Minimum price movement percentage required for momentum confirmation")
+
+
+// Volume confirmation filter settings
+enable_volume_filter = input.bool(true, title="Enable Volume Filter", group=GROUP_ALERT_TIME, tooltip="Require above-average volume for pivot signals to ensure market participation")
+volume_filter_multiplier = input.float(1.2, title="Volume Filter Multiplier", minval=0.5, maxval=3.0, step=0.1, group=GROUP_ALERT_TIME, tooltip="Volume must be this many times above average to confirm signal")
+
+// Candle pattern filter settings
+enable_candle_filter = input.bool(true, title="Enable Candle Pattern Filter", group=GROUP_ALERT_TIME, tooltip="Require bullish/bearish candle patterns for signal confirmation")
+candle_pattern_threshold = input.float(0.6, title="Candle Pattern Threshold", minval=0.3, maxval=0.9, step=0.1, group=GROUP_ALERT_TIME, tooltip="Minimum body-to-wick ratio for pattern confirmation")
+
+// Market structure alignment filter settings
+enable_structure_filter = input.bool(true, title="Enable Market Structure Filter", group=GROUP_ALERT_TIME, tooltip="Only allow signals that align with current market structure")
+structure_filter_strict = input.bool(false, title="Strict Structure Filter", group=GROUP_ALERT_TIME, tooltip="Only allow signals in trending markets (disable for ranging market signals)")
 
 // ================================== TREND VS RANGE DETECTION ========================================================
 // Market structure detection parameters ------------------------------------------------------------------------------
@@ -368,23 +381,70 @@ shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast
 var int lastLongSignalBar = 0
 var int lastShortSignalBar = 0
 
-// Momentum confirmation filter function
-check_momentum_confirmation(signal_bar, direction) =>
-    if not enable_momentum_filter or bar_index < momentum_lookback
+// Candle pattern detection functions
+is_bullish_candle() =>
+    body_size = close - open
+    total_range = high - low
+    body_ratio = total_range > 0 ? math.abs(body_size) / total_range : 0
+    
+    // Bullish candle: close > open and body ratio meets threshold
+    close > open and body_ratio >= candle_pattern_threshold
+
+is_bearish_candle() =>
+    body_size = close - open
+    total_range = high - low
+    body_ratio = total_range > 0 ? math.abs(body_size) / total_range : 0
+    
+    // Bearish candle: close < open and body ratio meets threshold
+    close < open and body_ratio >= candle_pattern_threshold
+
+// Volume confirmation filter function
+check_volume_confirmation() =>
+    not enable_volume_filter or volume > (volume_ma * volume_filter_multiplier)
+
+// Candle pattern confirmation filter function
+check_candle_pattern_confirmation(direction) =>
+    if not enable_candle_filter
         true
     else
-        signal_price = close[momentum_lookback]
-        current_price = close
-        price_change_pct = direction == "long" ? 
-            ((current_price - signal_price) / signal_price) * 100 :
-            ((signal_price - current_price) / signal_price) * 100
-        
-        // Check if price moved in the expected direction by the threshold amount
-        price_change_pct >= momentum_threshold
+        direction == "long" ? is_bullish_candle() : is_bearish_candle()
 
-// Enhanced pivot signals with cooldown and momentum filters ----------------------------------------------------------------
-longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_momentum_confirmation(0, "long")
-shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_momentum_confirmation(0, "short")
+// Market structure alignment filter function
+check_structure_alignment(direction) =>
+    if not enable_structure_filter
+        true
+    else
+        // Get current market structure
+        [current_structure, _, _, _, _, _, _, _] = detect_market_structure()
+        
+        // Strict mode: only allow signals in trending markets
+        if structure_filter_strict
+            if current_structure == "TRENDING"
+                // In trending markets, check if signal aligns with trend direction
+                if direction == "long" and slope_value > 0
+                    true  // Long signal in uptrend
+                else if direction == "short" and slope_value < 0
+                    true  // Short signal in downtrend
+                else
+                    false  // Signal against trend
+            else
+                false  // No signals in ranging/mixed markets
+        else
+            // Flexible mode: allow signals in all market structures
+            if current_structure == "TRENDING"
+                // In trending markets, prefer aligned signals but allow counter-trend
+                if direction == "long" and slope_value > 0
+                    true  // Long signal in uptrend
+                else if direction == "short" and slope_value < 0
+                    true  // Short signal in downtrend
+                else
+                    true  // Allow counter-trend signals
+            else
+                true  // Allow signals in ranging/mixed markets
+
+// Enhanced pivot signals with cooldown, volume, candle pattern, and market structure filters ----------------------------------------------------------------
+longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and check_candle_pattern_confirmation("long") and check_structure_alignment("long")
+shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and check_candle_pattern_confirmation("short") and check_structure_alignment("short")
 
 // Update signal bar tracking -------------------------------------------------------------------------------------------
 if longSignalActive

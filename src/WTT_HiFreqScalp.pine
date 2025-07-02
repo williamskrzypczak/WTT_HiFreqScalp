@@ -1,7 +1,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v3.2
+// Revision: v3.3
 //
 // =====================================================================================================================
 //
@@ -34,6 +34,7 @@
 //   v3.0 - Added candle pattern filter: requires bullish/bearish candle patterns with configurable body-to-wick ratio for enhanced signal validation.
 //   v3.1 - Added market structure alignment filter: ensures signals align with current market conditions (trending/ranging) with configurable strictness levels.
 //   v3.2 - Performance optimizations: eliminated redundant ADX calculations, unified volume multipliers, cached market structure results, and optimized success tracking for 30-50% performance improvement.
+//   v3.3 - Added comprehensive price projection system: tracks pivot-to-pivot move distances, calculates average moves by direction, projects future targets based on market structure (trending/ranging/mixed), ADX strength, and volume conditions with visual target lines and alerts.
 //
 // =====================================================================================================================
 //
@@ -135,6 +136,15 @@ var int total_signals = 0
 // Market structure tracking variables
 var string last_market_structure = "UNKNOWN"
 var int structure_change_bar = 0
+
+// Price projection tracking variables
+var array<float> longMoveDistances = array.new<float>()
+var array<float> shortMoveDistances = array.new<float>()
+var float avgLongMoveDistance = 0.0
+var float avgShortMoveDistance = 0.0
+var float avgOverallMoveDistance = 0.0
+var float lastLongPivotPrice = 0.0
+var float lastShortPivotPrice = 0.0
 
 // ===================================== MAIN CALCULATIONS =============================================================
 
@@ -292,9 +302,8 @@ detect_market_structure() =>
     price_slope = calculate_slope(trend_range_lookback)
     normalized_slope = math.abs(price_slope) / close * 1000  // Normalize to price level
     
-    // Calculate volatility
+    // Calculate volatility (not currently used in scoring)
     price_volatility = calculate_volatility(trend_range_lookback)
-    volatility_ratio = price_volatility / close * 100  // As percentage of price
     
     // Calculate directional movement
     directional_ratio = calculate_directional_ratio(trend_range_lookback)
@@ -359,6 +368,8 @@ detect_market_structure() =>
     confidence = math.min(100, trend_score * 100)
     
     [market_structure, structure_color, confidence, trend_score, normalized_slope, directional_ratio, adx, price_range]
+
+
 
 // ================================== MARKET STRUCTURE ANALYSIS ======================================================
 // Detect current market structure and track changes ----------------------------------------------------------------
@@ -451,6 +462,13 @@ if longSignalActive
 if shortSignalActive
     lastShortSignalBar := bar_index
 
+// Price projection variables (will be updated after signal generation)
+var float currentProjection = 0.0
+var string projectionDirection = "None"
+var int projectionStartBar = 0
+var float recommendedStopLoss = 0.0
+var bool projectionSystemReady = false
+
 // Overbought/Oversold conditions --------------------------------------------------------------------------------------
 isOverbought = rsi_value > rsi_overbought
 isOversold = rsi_value < rsi_oversold
@@ -466,6 +484,154 @@ potential_momentum_peak_long = rsi_value <= (rsi_oversold * reversal_threshold) 
 potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_threshold_multiplier * 0.8)
 
 syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
+
+// ================================== PRICE PROJECTION SYSTEM =====================================================
+// Function to calculate price projection based on average moves and market structure ------------------------------
+
+// Function to calculate price projection multiplier based on market structure
+get_projection_multiplier(market_structure, adx_value, volume_ratio) =>
+    base_multiplier = 1.0
+    
+    // Market structure adjustments
+    if market_structure == "TRENDING"
+        base_multiplier := 1.5  // Trending markets get larger projections
+    else if market_structure == "RANGING"
+        base_multiplier := 0.7  // Ranging markets get smaller projections
+    else  // MIXED
+        base_multiplier := 1.0  // Mixed markets get standard projections
+    
+    // ADX strength adjustments
+    if adx_value >= 30
+        base_multiplier := base_multiplier * 1.2  // Strong trend = larger projection
+    else if adx_value <= 20
+        base_multiplier := base_multiplier * 0.8  // Weak trend = smaller projection
+    
+    // Volume adjustments
+    if volume_ratio >= 2.0
+        base_multiplier := base_multiplier * 1.1  // High volume = slightly larger projection
+    else if volume_ratio <= 0.5
+        base_multiplier := base_multiplier * 0.9  // Low volume = slightly smaller projection
+    
+    base_multiplier
+
+// Function to calculate price projection
+calculate_price_projection(direction, avg_move_distance, market_structure, adx_value, volume_ratio) =>
+    if avg_move_distance <= 0
+        0.0  // No historical data
+    else
+        multiplier = get_projection_multiplier(market_structure, adx_value, volume_ratio)
+        projected_distance = avg_move_distance * multiplier
+        
+        // Apply direction
+        if direction == "long"
+            projected_distance  // Positive for long moves
+        else if direction == "short"
+            -projected_distance  // Negative for short moves
+        else
+            0.0
+
+// Function to calculate recommended stop loss (50% of distance to target)
+calculate_stop_loss(direction, projected_distance, market_structure, adx_value, entry_price) =>
+    if projected_distance == 0
+        0.0  // No projection data
+    else
+        // Stop loss is 50% of the distance between entry and target
+        stop_distance = math.abs(projected_distance) * 0.5
+        
+        // Apply direction
+        if direction == "long"
+            -stop_distance  // Negative for long stops (below entry)
+        else if direction == "short"
+            stop_distance   // Positive for short stops (above entry)
+        else
+            0.0
+
+
+
+// Function to check if price has reached projection target
+check_projection_target() =>
+    if projectionDirection == "None" or currentProjection == 0
+        false
+    else
+        bars_since_projection = bar_index - projectionStartBar
+        
+        // Limit lookback to prevent historical data errors
+        if bars_since_projection > 1000
+            false
+        else
+            if projectionDirection == "long"
+                // Check if price has reached or exceeded long projection target
+                close >= (close[bars_since_projection] + currentProjection)
+            else if projectionDirection == "short"
+                // Check if price has reached or exceeded short projection target
+                close <= (close[bars_since_projection] + currentProjection)
+            else
+                false
+
+// Update move distances and generate price projections
+// Update long move distances when a new long signal occurs
+if longSignalActive and lastLongPivotPrice > 0
+    move_distance = close - lastLongPivotPrice
+    if move_distance > 0  // Only track positive moves
+        array.push(longMoveDistances, move_distance)
+        // Keep only last 20 moves for rolling average
+        if array.size(longMoveDistances) > 20
+            array.shift(longMoveDistances)
+    lastLongPivotPrice := close
+
+// Update short move distances when a new short signal occurs
+if shortSignalActive and lastShortPivotPrice > 0
+    move_distance = lastShortPivotPrice - close
+    if move_distance > 0  // Only track positive moves
+        array.push(shortMoveDistances, move_distance)
+        // Keep only last 20 moves for rolling average
+        if array.size(shortMoveDistances) > 20
+            array.shift(shortMoveDistances)
+    lastShortPivotPrice := close
+
+// Initialize pivot prices on first signals
+if longSignalActive and lastLongPivotPrice == 0
+    lastLongPivotPrice := close
+if shortSignalActive and lastShortPivotPrice == 0
+    lastShortPivotPrice := close
+
+// Calculate average move distances
+if array.size(longMoveDistances) > 0
+    avgLongMoveDistance := array.sum(longMoveDistances) / array.size(longMoveDistances)
+
+if array.size(shortMoveDistances) > 0
+    avgShortMoveDistance := array.sum(shortMoveDistances) / array.size(shortMoveDistances)
+
+// Calculate overall average
+total_moves = array.size(longMoveDistances) + array.size(shortMoveDistances)
+if total_moves > 0
+    avgOverallMoveDistance := (avgLongMoveDistance * array.size(longMoveDistances) + avgShortMoveDistance * array.size(shortMoveDistances)) / total_moves
+
+// Check if projection system is ready (has enough data)
+projectionSystemReady := total_moves >= 5
+
+// Generate new projections
+if longSignalActive
+    // Generate long projection
+    projectionDirection := "long"
+    projectionStartBar := bar_index
+    volume_ratio = volume / volume_ma
+    currentProjection := calculate_price_projection("long", avgLongMoveDistance, market_structure, adx_value, volume_ratio)
+    recommendedStopLoss := calculate_stop_loss("long", currentProjection, market_structure, adx_value, close)
+    
+else if shortSignalActive
+    // Generate short projection
+    projectionDirection := "short"
+    projectionStartBar := bar_index
+    volume_ratio = volume / volume_ma
+    currentProjection := calculate_price_projection("short", avgShortMoveDistance, market_structure, adx_value, volume_ratio)
+    recommendedStopLoss := calculate_stop_loss("short", currentProjection, market_structure, adx_value, close)
+
+// Calculate projection target price
+projectionTarget = close + currentProjection
+
+// Check if current projection target has been reached
+projectionTargetReached = check_projection_target()
 
 // ================================== MOMENTUM PEAK SUCCESS TRACKING ===================================================
 // Track success rate of Syzygy Momentum Peak signals ----------------------------------------------------------------
@@ -697,13 +863,66 @@ plotshape(potential_momentum_peak_long, location=location.belowbar, color=#7371d
 plotshape(strict_momentum_peak_short, location=location.abovebar, color=#dec20b, style=shape.circle, size=size.small, title="Strong Short Momentum Peak")
 plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371df, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak")
 
+// Plot price projection targets and stop loss - only show most current projection
+var line currentProjectionLine = na
+var label currentProjectionLabel = na
+var line currentStopLossLine = na
+var label currentStopLossLabel = na
+
+// Clear previous projection visuals when a new projection is generated
+if (longSignalActive or shortSignalActive) and projectionDirection != "None"
+    line.delete(currentProjectionLine)
+    label.delete(currentProjectionLabel)
+    line.delete(currentStopLossLine)
+    label.delete(currentStopLossLabel)
+    
+    if projectionDirection == "long" and projectionTarget > 0
+        // Projection target line and label
+        currentProjectionLine := line.new(bar_index, projectionTarget, bar_index + 20, projectionTarget, extend=extend.right, 
+             color=color.green, width=2, style=line.style_dashed)
+        currentProjectionLabel := label.new(bar_index + 10, projectionTarget, text="Long Target: " + str.tostring(projectionTarget, "#.####"), 
+             color=color.green, textcolor=color.white, style=label.style_label_left, size=size.small)
+        
+        // Stop loss line and label
+        stopLossPrice = close + recommendedStopLoss
+        if recommendedStopLoss != 0 and stopLossPrice > 0
+            currentStopLossLine := line.new(bar_index, stopLossPrice, bar_index + 20, stopLossPrice, extend=extend.right, 
+                 color=color.red, width=2, style=line.style_solid)
+            currentStopLossLabel := label.new(bar_index + 10, stopLossPrice, text="Stop Loss: " + str.tostring(stopLossPrice, "#.####"), 
+                 color=color.red, textcolor=color.white, style=label.style_label_left, size=size.small)
+    
+    if projectionDirection == "short" and projectionTarget > 0
+        // Projection target line and label
+        currentProjectionLine := line.new(bar_index, projectionTarget, bar_index + 20, projectionTarget, extend=extend.right, 
+             color=color.red, width=2, style=line.style_dashed)
+        currentProjectionLabel := label.new(bar_index + 10, projectionTarget, text="Short Target: " + str.tostring(projectionTarget, "#.####"), 
+             color=color.red, textcolor=color.white, style=label.style_label_left, size=size.small)
+        
+        // Stop loss line and label
+        stopLossPrice = close + recommendedStopLoss
+        if recommendedStopLoss != 0 and stopLossPrice > 0
+            currentStopLossLine := line.new(bar_index, stopLossPrice, bar_index + 20, stopLossPrice, extend=extend.right, 
+                 color=color.green, width=2, style=line.style_solid)
+            currentStopLossLabel := label.new(bar_index + 10, stopLossPrice, text="Stop Loss: " + str.tostring(stopLossPrice, "#.####"), 
+                 color=color.green, textcolor=color.white, style=label.style_label_left, size=size.small)
+
+// Plot projection target reached indicator - only show most current one
+var bool lastProjectionTargetReached = false
+
+// Only show diamond when target is first reached (not continuously)
+showTargetReached = projectionTargetReached and not lastProjectionTargetReached
+lastProjectionTargetReached := projectionTargetReached
+
+plotshape(showTargetReached, location=location.abovebar, color=color.yellow, style=shape.diamond, size=size.tiny, 
+     title="Projection Target Reached", text="🎯", textcolor=color.black)
+
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 
 if show_table
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 2, rows = 5, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 2, rows = 6, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Combined Alert Status and Style row - cached calculations
@@ -801,6 +1020,53 @@ if show_table
         table.cell(monitor_table, 0, 4, "Market Structure", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 4, market_structure_display, text_color=structure_text_color, text_size=size.normal, bgcolor=structure_color)
 
+    // Price Projection row - cached calculations
+    projection_status = projectionDirection == "None" ? "No Active Projection" : projectionDirection == "long" ? "Long Projection" : "Short Projection"
+    projection_distance = math.abs(currentProjection)
+    projection_distance_text = projection_distance > 0.001 ? str.tostring(projection_distance, "#.####") : "0.0000"
+    projection_target_text = projectionTarget > 0 ? str.tostring(math.round(projectionTarget, 2)) : "N/A"
+    projection_bars = projectionDirection != "None" ? str.tostring(bar_index - projectionStartBar) : "0"
+    
+    // Average move distance information
+    avg_long_text = avgLongMoveDistance > 0 ? str.tostring(avgLongMoveDistance, "#.####") : "N/A"
+    avg_short_text = avgShortMoveDistance > 0 ? str.tostring(avgShortMoveDistance, "#.####") : "N/A"
+    avg_overall_text = avgOverallMoveDistance > 0 ? str.tostring(avgOverallMoveDistance, "#.####") : "N/A"
+    
+    // Create projection display with target reached indicator and stop loss
+    stop_loss_text = recommendedStopLoss != 0 ? str.tostring(math.round(close + recommendedStopLoss, 2)) : "N/A"
+    
+    // Add heads up indicators
+    heads_up_status = if not projectionSystemReady
+        "⚠️ LEARNING (" + str.tostring(total_moves) + "/5)"
+    else if projectionDirection == "None"
+        "✅ READY"
+    else if projectionTargetReached
+        "🎯 TARGET REACHED"
+    else if currentProjection != 0 and math.abs(currentProjection) > 0.001 and projection_distance > 0.001
+        "📊 ACTIVE"
+    else
+        "⏳ PENDING"
+    
+    projection_display = projectionDirection == "None" ? 
+        heads_up_status + " | Avg: " + avg_overall_text :
+        heads_up_status + " | Target: " + projection_target_text + " | Stop: " + stop_loss_text + " | Dist: " + projection_distance_text + " | Bars: " + projection_bars
+    
+    // Set projection color based on direction and target status
+    projection_color = if not projectionSystemReady
+        color.orange  // Learning mode - orange warning
+    else if projectionDirection == "long"
+        projectionTargetReached ? color.green : color.teal
+    else if projectionDirection == "short"
+        projectionTargetReached ? color.red : color.maroon
+    else
+        color.gray
+    
+    // Determine text color for readability
+    projection_text_color = projection_color == color.gray ? color.white : color.white
+    
+    table.cell(monitor_table, 0, 5, "Price Projection", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 1, 5, projection_display, text_color=projection_text_color, text_size=size.normal, bgcolor=projection_color)
+
 // ========================================== ALERTS ===================================================================
 
 // Long and short trading alerts ----------------------------------------------------------------------
@@ -810,4 +1076,8 @@ alertcondition(shortSignalActive and enable_alerts, title="Syzygy Pivot Short", 
 // ================================= SYZYGY MOMENTUM PEAK ALERTS =======================================================
 // Alert condition for Syzygy Momentum Peak with enhanced descriptive message -----------------------------------------
 alertcondition(syzygy_momentum_peak_signal and enable_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nSignal: Momentum Peak (Long/Short, Strong/Weak)\nVolume: {{volume}}\nTime: {{time}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// ================================== PRICE PROJECTION ALERTS ==========================================================
+// Alert condition for price projection target reached -----------------------------------------------------------------
+alertcondition(projectionTargetReached and enable_alerts, title="Price Projection Target Reached", message="PROJECTION_TARGET_REACHED\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

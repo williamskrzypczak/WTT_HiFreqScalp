@@ -2,7 +2,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v3.4
+// Revision: v3.5
 //
 // =====================================================================================================================
 //
@@ -37,6 +37,7 @@
 //   v3.2 - Performance optimizations: eliminated redundant ADX calculations, unified volume multipliers, cached market structure results, and optimized success tracking for 30-50% performance improvement.
 //   v3.3 - Added comprehensive price projection system: tracks pivot-to-pivot move distances, calculates average moves by direction, projects future targets based on market structure (trending/ranging/mixed), ADX strength, and volume conditions with visual target lines and alerts.
 //   v3.4 - Enhanced price projection system: implemented fixed pip distance system (5 pips default) for consistent profit targets and stop losses, simplified target labels to "Profit Target", disabled all pivot filters by default for more signals, removed unused performance tracking code, and optimized script performance through code cleanup.
+//   v3.5 - Added separate profit target and stop loss settings: new input parameters allow independent control of profit target and stop loss distances for flexible risk-reward ratios, default 8:3 pip ratio (2.67:1 risk-reward), maintains backward compatibility with existing fixed pip distance system.
 //
 // =====================================================================================================================
 //
@@ -113,6 +114,11 @@ distance_multiplier = input.float(0.75, title="Distance Multiplier", minval=0.1,
 // Fixed pip distance settings
 fixed_pip_distance = input.float(5.0, title="Fixed Pip Distance", minval=1.0, maxval=50.0, step=0.5, group=GROUP_ALERT_TIME, tooltip="Fixed distance in pips for profit target and stop loss (5.0 = 5 pips)")
 use_fixed_distance = input.bool(true, title="Use Fixed Pip Distance", group=GROUP_ALERT_TIME, tooltip="Use fixed pip distance instead of dynamic distance calculation")
+
+// Separate profit target and stop loss settings
+profit_target_pips = input.float(8.0, title="Profit Target (Pips)", minval=1.0, maxval=50.0, step=0.5, group=GROUP_ALERT_TIME, tooltip="Profit target distance in pips (8.0 = 8 pips)")
+stop_loss_pips = input.float(3.0, title="Stop Loss (Pips)", minval=1.0, maxval=20.0, step=0.5, group=GROUP_ALERT_TIME, tooltip="Stop loss distance in pips (3.0 = 3 pips)")
+use_separate_targets = input.bool(false, title="Use Separate Profit/Stop Targets", group=GROUP_ALERT_TIME, tooltip="Use separate profit target and stop loss instead of fixed pip distance")
 
 // Success tracking parameters
 success_lookback_bars = input.int(10, title="Success Lookback Bars", minval=5, maxval=50, group=GROUP_ALERT_TIME, tooltip="How many bars to look ahead for success/failure evaluation")
@@ -512,15 +518,20 @@ syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_
 raw_distance = (longSignalActive or shortSignalActive) ? (longSignalActive ? close - crossoverPrice : crossoverPrice - close) : 0.0
 distance_to_crossover = raw_distance * distance_multiplier
 
-// Convert pip distance to price distance (assuming 4 decimal places for most forex pairs)
+// Convert pip distances to price distances (assuming 4 decimal places for most forex pairs)
 pip_to_price = fixed_pip_distance * 0.0001
+profit_target_price = profit_target_pips * 0.0001
+stop_loss_price = stop_loss_pips * 0.0001
 
 // Generate new projections
 if longSignalActive
     // Generate long projection
     projectionDirection := "long"
     projectionStartBar := bar_index
-    if use_fixed_distance
+    if use_separate_targets
+        currentProjection := profit_target_price  // Separate profit target distance
+        recommendedStopLoss := -stop_loss_price  // Separate stop loss distance (negative for long)
+    else if use_fixed_distance
         currentProjection := pip_to_price  // Fixed pip distance for profit target
         recommendedStopLoss := -pip_to_price  // Fixed pip distance for stop loss (negative for long)
     else
@@ -532,7 +543,10 @@ else if shortSignalActive
     // Generate short projection
     projectionDirection := "short"
     projectionStartBar := bar_index
-    if use_fixed_distance
+    if use_separate_targets
+        currentProjection := -profit_target_price  // Separate profit target distance (negative for short)
+        recommendedStopLoss := stop_loss_price  // Separate stop loss distance
+    else if use_fixed_distance
         currentProjection := -pip_to_price  // Fixed pip distance for profit target (negative for short)
         recommendedStopLoss := pip_to_price  // Fixed pip distance for stop loss
     else
@@ -563,8 +577,8 @@ check_stop_loss_hit() =>
     if projectionDirection == "None" or recommendedStopLoss == 0
         false
     else
-        if use_fixed_distance
-            // For fixed distance, calculate stop loss price directly from entry price
+        if use_separate_targets or use_fixed_distance
+            // For separate targets or fixed distance, calculate stop loss price directly from entry price
             stop_loss_price = entryPrice + recommendedStopLoss
             
             if projectionDirection == "long"
@@ -873,7 +887,7 @@ if (longSignalActive or shortSignalActive) and projectionDirection != "None"
         
         // Stop loss line and label
         if recommendedStopLoss != 0
-            stop_loss_price = use_fixed_distance ? entryPrice + recommendedStopLoss : crossoverPrice
+            stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
             currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 20, stop_loss_price, extend=extend.right, 
                  color=color.red, width=1, style=line.style_solid)
             currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 
@@ -888,7 +902,7 @@ if (longSignalActive or shortSignalActive) and projectionDirection != "None"
         
         // Stop loss line and label
         if recommendedStopLoss != 0
-            stop_loss_price = use_fixed_distance ? entryPrice + recommendedStopLoss : crossoverPrice
+            stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
             currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 20, stop_loss_price, extend=extend.right, 
                  color=color.green, width=1, style=line.style_solid)
             currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 

@@ -2,7 +2,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v3.6
+// Revision: v3.8
 //
 // =====================================================================================================================
 //
@@ -39,6 +39,8 @@
 //   v3.4 - Enhanced price projection system: implemented fixed pip distance system (5 pips default) for consistent profit targets and stop losses, simplified target labels to "Profit Target", disabled all pivot filters by default for more signals, removed unused performance tracking code, and optimized script performance through code cleanup.
 //   v3.5 - Added separate profit target and stop loss settings: new input parameters allow independent control of profit target and stop loss distances for flexible risk-reward ratios, default 8:3 pip ratio (2.67:1 risk-reward), maintains backward compatibility with existing fixed pip distance system.
 //   v3.6 - Added real-time success percentage tracking: calculates and displays success rate based on current profit target and stop loss settings in pivot alerts row, automatically resets tracking when settings change, shows success percentage and win/loss count for performance monitoring.
+//   v3.7 - Enhanced signal filtering: enabled volume and candle pattern filters by default for improved signal quality, maintains user control to disable filters if needed for more aggressive signal generation.
+//   v3.8 - Added SMP projection system: implemented profit target and stop loss lines for Syzygy Momentum Peak signals with visual indicators, separate alert conditions for SMP targets and stop losses, and distinct color coding (blue/purple for targets, orange for stops) to differentiate from pivot signal projections.
 //
 // =====================================================================================================================
 //
@@ -127,11 +129,11 @@ success_threshold_pct = input.float(1.0, title="Success Threshold %", minval=0.1
 reversal_threshold_pct = input.float(0.5, title="Reversal Threshold %", minval=0.1, maxval=2.0, step=0.1, group=GROUP_ALERT_TIME, tooltip="Price movement threshold for reversal evaluation")
 
 // Volume confirmation filter settings
-enable_volume_filter = input.bool(false, title="Enable Volume Filter", group=GROUP_ALERT_TIME, tooltip="Require above-average volume for pivot signals to ensure market participation")
+enable_volume_filter = input.bool(true, title="Enable Volume Filter", group=GROUP_ALERT_TIME, tooltip="Require above-average volume for pivot signals to ensure market participation")
 volume_threshold_multiplier = input.float(1.5, title="Volume Threshold Multiplier", minval=0.5, maxval=3.0, step=0.1, group=GROUP_ALERT_TIME, tooltip="Volume must be this many times above average to confirm signals")
 
 // Candle pattern filter settings
-enable_candle_filter = input.bool(false, title="Enable Candle Pattern Filter", group=GROUP_ALERT_TIME, tooltip="Require bullish/bearish candle patterns for signal confirmation")
+enable_candle_filter = input.bool(true, title="Enable Candle Pattern Filter", group=GROUP_ALERT_TIME, tooltip="Require bullish/bearish candle patterns for signal confirmation")
 candle_pattern_threshold = input.float(0.6, title="Candle Pattern Threshold", minval=0.3, maxval=0.9, step=0.1, group=GROUP_ALERT_TIME, tooltip="Minimum body-to-wick ratio for pattern confirmation")
 
 // Market structure alignment filter settings
@@ -476,10 +478,36 @@ var float currentSuccessRate = 0.0
 var int totalPivotSignals = 0
 var int successfulPivots = 0
 
+// SMP success tracking variables
+var array<int> smpSignalBars = array.new<int>()
+var array<bool> smpResults = array.new<bool>()
+var float smpSuccessRate = 0.0
+var int totalSmpSignals = 0
+var int successfulSmps = 0
+
 // Track settings to detect changes and reset success tracking
 var float last_profit_target = 0.0
 var float last_stop_loss = 0.0
 var bool last_use_separate = false
+
+// SMP projection variables (similar to pivot projections)
+var float smpCurrentProjection = 0.0
+var string smpProjectionDirection = "None"
+var int smpProjectionStartBar = 0
+var float smpRecommendedStopLoss = 0.0
+var float smpEntryPrice = 0.0
+var float smpTargetPrice = 0.0
+var bool smpProjectionCompleted = false
+
+// SMP projection visual elements
+var line smpCurrentProjectionLine = na
+var label smpCurrentProjectionLabel = na
+var line smpCurrentStopLossLine = na
+var label smpCurrentStopLossLabel = na
+
+// SMP indicator display flags
+var bool smpTargetEverReached = false
+var bool smpStopLossEverHit = false
 
 // Pivot performance tracking (currently unused - removed from table display)
 // var array<bool> pivotResults = array.new<bool>()
@@ -521,20 +549,59 @@ potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshol
 
 syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
 
+// Convert pip distances to price distances (assuming 4 decimal places for most forex pairs)
+pip_to_price = fixed_pip_distance * 0.0001
+profit_target_price = profit_target_pips * 0.0001
+stop_loss_price = stop_loss_pips * 0.0001
+
+// Calculate distance to crossover price (adjusted by multiplier) - for pivot signals only
+raw_distance = (longSignalActive or shortSignalActive) ? (longSignalActive ? close - crossoverPrice : crossoverPrice - close) : 0.0
+distance_to_crossover = raw_distance * distance_multiplier
+
+// Generate SMP projections when SMP signals occur
+if strict_momentum_peak_long or potential_momentum_peak_long
+    // Generate long SMP projection
+    smpProjectionDirection := "long"
+    smpProjectionStartBar := bar_index
+    if use_separate_targets
+        smpCurrentProjection := -stop_loss_price  // Separate stop loss distance (negative for long) - REVERSED
+        smpRecommendedStopLoss := profit_target_price  // Separate profit target distance - REVERSED
+    else if use_fixed_distance
+        smpCurrentProjection := -pip_to_price  // Fixed pip distance for stop loss (negative for long) - REVERSED
+        smpRecommendedStopLoss := pip_to_price  // Fixed pip distance for profit target - REVERSED
+    else
+        // For SMP signals, use a default dynamic distance based on ATR or price volatility
+        smpCurrentProjection := -close * 0.0005  // 0.05% of current price as default stop loss - REVERSED
+        smpRecommendedStopLoss := close * 0.001  // 0.1% of current price as default profit target - REVERSED
+    smpEntryPrice := close
+    
+else if strict_momentum_peak_short or potential_momentum_peak_short
+    // Generate short SMP projection
+    smpProjectionDirection := "short"
+    smpProjectionStartBar := bar_index
+    if use_separate_targets
+        smpCurrentProjection := stop_loss_price  // Separate stop loss distance - REVERSED
+        smpRecommendedStopLoss := -profit_target_price  // Separate profit target distance (negative for short) - REVERSED
+    else if use_fixed_distance
+        smpCurrentProjection := pip_to_price  // Fixed pip distance for stop loss - REVERSED
+        smpRecommendedStopLoss := -pip_to_price  // Fixed pip distance for profit target (negative for short) - REVERSED
+    else
+        // For SMP signals, use a default dynamic distance based on ATR or price volatility
+        smpCurrentProjection := close * 0.0005  // 0.05% of current price as default stop loss - REVERSED
+        smpRecommendedStopLoss := -close * 0.001  // 0.1% of current price as default profit target (negative for short) - REVERSED
+    smpEntryPrice := close
+else
+    // Reset SMP projection direction when no SMP signals occur
+    smpProjectionDirection := "None"
+
+// Calculate SMP projection target price
+smpTargetPrice := smpEntryPrice + smpCurrentProjection  // Target is entry price + projection distance
+
 // Initialize pivot prices on first signals (no longer needed)
 // if longSignalActive and lastLongPivotPrice == 0
 //     lastLongPivotPrice := close
 // if shortSignalActive and lastShortPivotPrice == 0
 //     lastShortPivotPrice := close
-
-// Calculate distance to crossover price (adjusted by multiplier)
-raw_distance = (longSignalActive or shortSignalActive) ? (longSignalActive ? close - crossoverPrice : crossoverPrice - close) : 0.0
-distance_to_crossover = raw_distance * distance_multiplier
-
-// Convert pip distances to price distances (assuming 4 decimal places for most forex pairs)
-pip_to_price = fixed_pip_distance * 0.0001
-profit_target_price = profit_target_pips * 0.0001
-stop_loss_price = stop_loss_pips * 0.0001
 
 // Generate new projections
 if longSignalActive
@@ -632,6 +699,92 @@ projectionTargetReached = check_projection_target()
 // Check if stop loss has been hit
 stopLossHit = check_stop_loss_hit()
 
+// ================================== SMP PROJECTION SYSTEM =====================================================
+// Function to check if SMP price has reached projection target
+check_smp_projection_target() =>
+    if smpProjectionDirection == "None" or smpCurrentProjection == 0
+        false
+    else
+        if smpProjectionDirection == "long"
+            // Check if price has reached or exceeded long SMP projection target
+            close >= smpTargetPrice
+        else if smpProjectionDirection == "short"
+            // Check if price has reached or exceeded short SMP projection target
+            close <= smpTargetPrice
+        else
+            false
+
+// Function to check if SMP stop loss has been hit
+check_smp_stop_loss_hit() =>
+    if smpProjectionDirection == "None" or smpRecommendedStopLoss == 0
+        false
+    else
+        if use_separate_targets or use_fixed_distance
+            // For separate targets or fixed distance, calculate stop loss price directly from entry price
+            stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
+            
+            if smpProjectionDirection == "long"
+                // For long positions, stop loss is below entry (negative smpRecommendedStopLoss)
+                // Check if price has reached or gone below stop loss
+                close <= stop_loss_price
+            else if smpProjectionDirection == "short"
+                // For short positions, stop loss is above entry (positive smpRecommendedStopLoss)
+                // Check if price has reached or gone above stop loss
+                close >= stop_loss_price
+            else
+                false
+        else
+            // For dynamic distance, use the original calculation
+            bars_since_projection = bar_index - smpProjectionStartBar
+            
+            // Limit lookback to prevent historical data errors
+            if bars_since_projection > 1000
+                false
+            else
+                entry_price = close[bars_since_projection]
+                stop_loss_price = entry_price + smpRecommendedStopLoss
+                
+                if smpProjectionDirection == "long"
+                    // For long positions, stop loss is below entry (negative smpRecommendedStopLoss)
+                    // Check if price has reached or gone below stop loss
+                    close <= stop_loss_price
+                else if smpProjectionDirection == "short"
+                    // For short positions, stop loss is above entry (positive smpRecommendedStopLoss)
+                    // Check if price has reached or gone above stop loss
+                    close >= stop_loss_price
+                else
+                    false
+
+// Check if current SMP projection target has been reached
+smpProjectionTargetReached = check_smp_projection_target()
+
+// Check if SMP stop loss has been hit
+smpStopLossHit = check_smp_stop_loss_hit()
+
+// Mark SMP projection as completed if target or stop loss is hit
+if (smpProjectionTargetReached or smpStopLossHit) and not smpProjectionCompleted
+    smpProjectionCompleted := true
+    
+    // Track SMP performance based on current profit target and stop loss settings
+    if smpProjectionTargetReached
+        // Target reached = success
+        array.push(smpResults, true)
+        successfulSmps := successfulSmps + 1
+    else if smpStopLossHit
+        // Stop loss hit = failure
+        array.push(smpResults, false)
+    
+    totalSmpSignals := totalSmpSignals + 1
+    
+    // Keep only last 50 results for rolling performance
+    if array.size(smpResults) > 50
+        array.shift(smpResults)
+        // Recalculate successful SMPs from remaining results
+        successfulSmps := 0
+        for i = 0 to array.size(smpResults) - 1
+            if array.get(smpResults, i)
+                successfulSmps := successfulSmps + 1
+
 // Track new pivot signals for success evaluation
 if longSignalActive or shortSignalActive
     array.push(pivotSignalBars, bar_index)
@@ -640,6 +793,15 @@ if longSignalActive or shortSignalActive
         array.shift(pivotSignalBars)
         if array.size(pivotResults) > 0
             array.shift(pivotResults)
+
+// Track new SMP signals for success evaluation
+if strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
+    array.push(smpSignalBars, bar_index)
+    // Keep only last 100 signals for rolling analysis
+    if array.size(smpSignalBars) > 100
+        array.shift(smpSignalBars)
+        if array.size(smpResults) > 0
+            array.shift(smpResults)
 
 // Mark projection as completed if target or stop loss is hit
 if (projectionTargetReached or stopLossHit) and not projectionCompleted
@@ -676,13 +838,21 @@ if settings_changed
     successfulPivots := 0
     currentSuccessRate := 0.0
     
+    // Reset SMP success tracking when settings change
+    array.clear(smpSignalBars)
+    array.clear(smpResults)
+    totalSmpSignals := 0
+    successfulSmps := 0
+    smpSuccessRate := 0.0
+    
     // Update last settings
     last_profit_target := profit_target_pips
     last_stop_loss := stop_loss_pips
     last_use_separate := use_separate_targets
 
-// Calculate current success rate
+// Calculate current success rates
 currentSuccessRate := totalPivotSignals > 0 ? (successfulPivots / totalPivotSignals) * 100 : 0.0
+smpSuccessRate := totalSmpSignals > 0 ? (successfulSmps / totalSmpSignals) * 100 : 0.0
 
 // ================================== MOMENTUM PEAK SUCCESS TRACKING ===================================================
 // Track success rate of Syzygy Momentum Peak signals ----------------------------------------------------------------
@@ -888,6 +1058,8 @@ plotshape(series=longSignalActive, location=location.bottom, color=color.lime,
 plotshape(series=shortSignalActive, location=location.top, color=color.white, 
      style=shape.triangledown, size=size.small, title="Syzygy Cross Short", text="S", textcolor=color.white)
 
+
+
 // Plot overbought/oversold markers ------------------------------------------------------------------------------------
 plotshape(rsiOverboughtAlert, location=location.abovebar, color=color.red,
      style=shape.circle, size=size.tiny, title="Overbought")
@@ -909,6 +1081,8 @@ plotshape(potential_momentum_peak_long, location=location.belowbar, color=#7371d
 plotshape(strict_momentum_peak_short, location=location.abovebar, color=#dec20b, style=shape.circle, size=size.small, title="Strong Short Momentum Peak")
 plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371df, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak")
 
+
+
 // Clear previous projection visuals when a new projection is generated
 if (longSignalActive or shortSignalActive) and projectionDirection != "None"
     line.delete(currentProjectionLine)
@@ -918,36 +1092,78 @@ if (longSignalActive or shortSignalActive) and projectionDirection != "None"
     projectionCompleted := false
     targetEverReached := false
     stopLossEverHit := false
+
+// Draw pivot projection lines and labels (only once per signal)
+if projectionDirection == "long" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
+    // Projection target line and label
+    currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
+         color=color.green, width=1, style=line.style_dashed)
+    currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="Profit Target: " + str.tostring(targetPrice, "#.####"), 
+         color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
-    if projectionDirection == "long" and targetPrice > 0
-        // Projection target line and label
-        currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 20, targetPrice, extend=extend.right, 
-             color=color.green, width=1, style=line.style_dashed)
-        currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="Profit Target: " + str.tostring(targetPrice, "#.####"), 
-             color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-        
-        // Stop loss line and label
-        if recommendedStopLoss != 0
-            stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
-            currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 20, stop_loss_price, extend=extend.right, 
-                 color=color.red, width=1, style=line.style_solid)
-            currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 
-                 color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if projectionDirection == "short" and targetPrice > 0
-        // Projection target line and label
-        currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 20, targetPrice, extend=extend.right, 
-             color=color.red, width=1, style=line.style_dashed)
-        currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="Profit Target: " + str.tostring(targetPrice, "#.####"), 
+    // Stop loss line and label
+    if recommendedStopLoss != 0
+        stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
+        currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
+             color=color.red, width=1, style=line.style_solid)
+        currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-        
-        // Stop loss line and label
-        if recommendedStopLoss != 0
-            stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
-            currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 20, stop_loss_price, extend=extend.right, 
-                 color=color.green, width=1, style=line.style_solid)
-            currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 
-                 color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+if projectionDirection == "short" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
+    // Projection target line and label
+    currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
+         color=color.red, width=1, style=line.style_dashed)
+    currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="Profit Target: " + str.tostring(targetPrice, "#.####"), 
+         color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+    
+    // Stop loss line and label
+    if recommendedStopLoss != 0
+        stop_loss_price = (use_separate_targets or use_fixed_distance) ? entryPrice + recommendedStopLoss : crossoverPrice
+        currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
+             color=color.green, width=1, style=line.style_solid)
+        currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="Stop Loss: " + str.tostring(stop_loss_price, "#.####"), 
+             color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+// Clear previous SMP projection visuals when a new SMP projection is generated
+if (strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short)
+    line.delete(smpCurrentProjectionLine)
+    label.delete(smpCurrentProjectionLabel)
+    line.delete(smpCurrentStopLossLine)
+    label.delete(smpCurrentStopLossLabel)
+    smpProjectionCompleted := false
+    smpTargetEverReached := false
+    smpStopLossEverHit := false
+
+// Draw SMP projection lines and labels (only once per signal)
+if smpProjectionDirection == "long" and smpTargetPrice > 0
+    // SMP projection target line and label
+    smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
+         color=color.blue, width=1, style=line.style_dashed)
+    smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="🎯 SMP Target: " + str.tostring(smpTargetPrice, "#.####"), 
+         color=color.new(color.blue, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+    
+    // SMP stop loss line and label
+    if smpRecommendedStopLoss != 0
+        stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
+        smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
+             color=color.orange, width=1, style=line.style_solid)
+        smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="💀 SMP Stop: " + str.tostring(stop_loss_price, "#.####"), 
+             color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+
+if smpProjectionDirection == "short" and smpTargetPrice > 0
+    // SMP projection target line and label
+    smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
+         color=color.purple, width=1, style=line.style_dashed)
+    smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="🎯 SMP Target: " + str.tostring(smpTargetPrice, "#.####"), 
+         color=color.new(color.purple, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
+    
+    // SMP stop loss line and label
+    if smpRecommendedStopLoss != 0
+        stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
+        smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
+             color=color.orange, width=1, style=line.style_solid)
+        smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="💀 SMP Stop: " + str.tostring(stop_loss_price, "#.####"), 
+             color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
 // Plot first indicator that triggers (target or stop loss)
 // Only show the first one that triggers
@@ -965,6 +1181,25 @@ plotshape(showTargetReached, location=location.abovebar, color=color.new(color.y
 
 plotshape(showStopLossHit, location=location.belowbar, color=color.new(color.red, 100), style=shape.circle, size=size.small, 
      title="Stop Loss Hit", text="💀", textcolor=color.white)
+
+// Plot SMP first indicator that triggers (target or stop loss)
+// Only show the first one that triggers
+showSmpTargetReached = smpProjectionTargetReached and not smpTargetEverReached and not smpStopLossEverHit
+showSmpStopLossHit = smpStopLossHit and not smpStopLossEverHit and not smpTargetEverReached
+
+// Set SMP flags when indicators trigger
+if smpProjectionTargetReached
+    smpTargetEverReached := true
+if smpStopLossHit
+    smpStopLossEverHit := true
+
+plotshape(showSmpTargetReached, location=location.abovebar, color=color.new(color.blue, 100), style=shape.circle, size=size.tiny, 
+     title="SMP Target Reached", text="🎯", textcolor=color.white)
+
+plotshape(showSmpStopLossHit, location=location.belowbar, color=color.new(color.orange, 100), style=shape.circle, size=size.small, 
+     title="SMP Stop Loss Hit", text="💀", textcolor=color.white)
+
+
 
 // ================================== RSI & ADX MONITOR TABLE ==========================================================
 
@@ -1021,41 +1256,32 @@ if show_table
     
     // Create SMP alert status with previous alert info
     smp_alert_status = lastSMPAlertType == "None" ? "No SMP Alerts" : barsSinceLastSMPAlert == 0 ? lastSMPAlertType + " 🟡 LIVE" : lastSMPAlertType
-    smp_bars_info = lastSMPAlertType != "None" ? " | " + str.tostring(barsSinceLastSMPAlert) + " bars ago" : ""
     
-    // Combine current setup with previous alert info
-    smp_combined_info = setup_message + " | Last: " + smp_alert_status + smp_bars_info
+    // SMP success rate display
+    smp_success_rate_text = totalSmpSignals > 0 ? "Success: " + str.tostring(math.round(smpSuccessRate, 1)) + "% (" + str.tostring(successfulSmps) + "/" + str.tostring(totalSmpSignals) + ")" : "Success: No data"
+    
+    // Combine current setup with success rate info
+    smp_combined_info = setup_message + " | " + smp_success_rate_text
+    
+    // Set SMP color based on success rate instead of setup color
+    smp_color = smpSuccessRate >= 60 ? color.green : smpSuccessRate >= 40 ? color.orange : color.red
     
     // Determine text color based on background color for better readability
-    smp_text_color = setup_color == color.lime or setup_color == color.green ? color.black : color.white
+    smp_text_color = smp_color == color.green ? color.black : color.white
     
     table.cell(monitor_table, 0, 2, "SMP Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 2, smp_combined_info, text_color=smp_text_color, bgcolor=setup_color, text_size=size.normal)
+    table.cell(monitor_table, 1, 2, smp_combined_info, text_color=smp_text_color, bgcolor=smp_color, text_size=size.normal)
 
-    // Pivot Alerts & Trends row - cached calculations
+    // Pivot Alerts row - cached calculations
     simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
     
-    current_trend_info = currentTrendDirection != "None" ? str.tostring(currentTrendDuration) + " bars" : "0 bars"
-    overall_avg_text = totalTrends > 0 ? "Avg: " + str.tostring(math.round(avgOverallTrendDuration, 1)) + " bars" : "No data"
-    
     // Real-time success rate display
-    success_rate_text = totalPivotSignals > 0 ? " | Success: " + str.tostring(math.round(currentSuccessRate, 1)) + "% (" + str.tostring(successfulPivots) + "/" + str.tostring(totalPivotSignals) + ")" : " | Success: No data"
+    success_rate_text = totalPivotSignals > 0 ? "Success: " + str.tostring(math.round(currentSuccessRate, 1)) + "% (" + str.tostring(successfulPivots) + "/" + str.tostring(totalPivotSignals) + ")" : "Success: No data"
     
-    // Determine if current trend exceeds average and apply flashing effect - cached calculations
-    exceeds_average = false
-    if currentTrendDirection == "Long" and avgLongTrendDuration > 0
-        exceeds_average := currentTrendDuration > avgLongTrendDuration
-    else if currentTrendDirection == "Short" and avgShortTrendDuration > 0
-        exceeds_average := currentTrendDuration > avgShortTrendDuration
+    // Set trend color based on success rate
+    trend_color = currentSuccessRate >= 60 ? color.green : currentSuccessRate >= 40 ? color.orange : color.red
     
-    // Create flashing effect using seconds - cached calculation
-    flash = math.floor(time / 1000) % 2 == 0
-    
-    // Set trend color with flashing effect when exceeding average
-    base_trend_color = currentTrendDirection == "Long" ? color.teal : currentTrendDirection == "Short" ? color.maroon : color.gray
-    trend_color = exceeds_average and flash ? color.orange : base_trend_color
-    
-    combined_pivot_trends = simplified_alert_status + " | Duration: " + str.tostring(barsSinceLastAlert) + " bars ago" + " | " + overall_avg_text + success_rate_text
+    combined_pivot_trends = simplified_alert_status + " | " + success_rate_text
     
     table.cell(monitor_table, 0, 3, "Pivot Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 3, combined_pivot_trends, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
@@ -1089,4 +1315,11 @@ alertcondition(projectionTargetReached and enable_alerts, title="Price Projectio
 
 // Alert condition for stop loss hit -----------------------------------------------------------------------------------
 alertcondition(stopLossHit and enable_alerts, title="Stop Loss Hit", message="STOP_LOSS_HIT\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// ================================== SMP PROJECTION ALERTS ============================================================
+// Alert condition for SMP price projection target reached -------------------------------------------------------------
+alertcondition(smpProjectionTargetReached and enable_alerts, title="SMP Projection Target Reached", message="SMP_PROJECTION_TARGET_REACHED\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// Alert condition for SMP stop loss hit ------------------------------------------------------------------------------
+alertcondition(smpStopLossHit and enable_alerts, title="SMP Stop Loss Hit", message="SMP_STOP_LOSS_HIT\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

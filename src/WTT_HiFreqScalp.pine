@@ -210,6 +210,11 @@ var float short_pullback_high = 0.0
 var bool long_bounce_detected = false
 var bool short_bounce_detected = false
 
+// ================================== EMA CROSSOVER TRACKING VARIABLES ================================================
+// Variables to track if EMA has crossed in opposite direction since pivot signal
+var bool long_pivot_invalidated = false
+var bool short_pivot_invalidated = false
+
 // ================================== PULLBACK SUCCESS TRACKING VARIABLES =============================================
 // Variables to track success rate of pullback-based trades
 var array<int> longPullbackBars = array.new<int>()
@@ -453,12 +458,22 @@ if longSignalActive
     long_pivot_peak_bar := bar_index
     long_pullback_detected := false
     long_pullback_alerted := false
+    long_pivot_invalidated := false
 
 if shortSignalActive
     short_pivot_trough_price := close
     short_pivot_trough_bar := bar_index
     short_pullback_detected := false
     short_pullback_alerted := false
+    short_pivot_invalidated := false
+
+// ================================== EMA CROSSOVER INVALIDATION LOGIC ===============================================
+// Track if EMA crosses in opposite direction and invalidate pivot for bounce detection
+if long_pivot_peak_price > 0 and not long_pivot_invalidated and ta.crossunder(ema3, middleEMA)
+    long_pivot_invalidated := true
+
+if short_pivot_trough_price > 0 and not short_pivot_invalidated and ta.crossover(ema3, middleEMA)
+    short_pivot_invalidated := true
 
 // Update peak/trough prices after pivot signals
 if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar and bar_index <= long_pivot_peak_bar + pullback_lookback_bars
@@ -488,13 +503,13 @@ if enable_pullback_detection and short_pivot_trough_price > 0 and not short_pull
         short_pullback_high := close
 
 // Detect bounces after pullbacks (only first time)
-if enable_pullback_detection and long_pullback_detected and not long_bounce_detected and long_pullback_low > 0
-    if close > long_pullback_low and ema3 > middleEMA and not ta.crossunder(ema3, middleEMA)
+if enable_pullback_detection and long_pullback_detected and not long_bounce_detected and long_pullback_low > 0 and not long_pivot_invalidated
+    if close > long_pullback_low and ema3 > middleEMA
         long_bounce_detected := true
         long_pullback_alerted := true
 
-if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0
-    if close < short_pullback_high and ema3 < middleEMA and not ta.crossover(ema3, middleEMA)
+if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0 and not short_pivot_invalidated
+    if close < short_pullback_high and ema3 < middleEMA
         short_bounce_detected := true
         short_pullback_alerted := true
 
@@ -532,6 +547,7 @@ if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_look
     long_pullback_alerted := false
     long_bounce_detected := false
     long_pullback_low := 0.0
+    long_pivot_invalidated := false
 
 if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullback_lookback_bars
     short_pivot_trough_price := 0.0
@@ -539,6 +555,7 @@ if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullbac
     short_pullback_alerted := false
     short_bounce_detected := false
     short_pullback_high := 0.0
+    short_pivot_invalidated := false
 
 // ================================== PULLBACK SUCCESS TRACKING LOGIC (OPTIMIZED) ====================================
 // Track pullback signals and evaluate their success ----------------------------------------------------------------

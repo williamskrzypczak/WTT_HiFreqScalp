@@ -489,12 +489,12 @@ if enable_pullback_detection and short_pivot_trough_price > 0 and not short_pull
 
 // Detect bounces after pullbacks (only first time)
 if enable_pullback_detection and long_pullback_detected and not long_bounce_detected and long_pullback_low > 0
-    if close > long_pullback_low and ema3 > middleEMA
+    if close > long_pullback_low and ema3 > middleEMA and not ta.crossunder(ema3, middleEMA)
         long_bounce_detected := true
         long_pullback_alerted := true
 
 if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0
-    if close < short_pullback_high and ema3 < middleEMA
+    if close < short_pullback_high and ema3 < middleEMA and not ta.crossover(ema3, middleEMA)
         short_bounce_detected := true
         short_pullback_alerted := true
 
@@ -1383,4 +1383,12 @@ alertcondition(long_pullback_detected and enable_pullback_detection and enable_a
 
 alertcondition(short_pullback_detected and enable_pullback_detection and enable_alerts and enable_pullback_alerts, title="Short Pivot Pullback Detected", 
      message="SHORT_PIVOT_PULLBACK\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+// ================================== BOUNCE DETECTION ALERTS ==========================================================
+// Alert conditions for bounce detection after pullback signals --------------------------------------------------------
+alertcondition(long_bounce_detected and enable_pullback_detection and enable_alerts and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
+     message="LONG_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+
+alertcondition(short_bounce_detected and enable_pullback_detection and enable_alerts and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
+     message="SHORT_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

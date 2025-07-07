@@ -7,44 +7,13 @@
 // =====================================================================================================================
 //
 // Version History:
-//   v1.0 - Initial release.
-//   v1.1 - Simplified time filtering to a single ON/OFF toggle for CST 7:45-11:00AM & 7-11PM alert windows.
-//   v1.2 - Refactored variables for clarity, disabled Syzygy alerts, and ensured all alerts honor the global enable/disable setting.
-//   v1.3 - Added trend duration tracking with average calculations for long and short trends, integrated into main table display.
-//   v1.4 - Added orange flashing alert when current trend duration exceeds historical average, simplified trend stats display.
-//   v1.5 - Updated signal naming to SYZ_PIVOT_LONG/SHORT, enhanced table labels with "Current Bar Count" prefix.
-//   v1.6 - Rewritten trend pivot alerts to trigger on raw EMA crosses with 3-bar signal cooldown system to prevent signal spam.
-//   v1.7 - Consolidated alerts and trend stats into single table row, updated branding from RV to SMP, eliminated redundant bar count information.
-//   v1.8 - Added SMP success tracking system to monitor Syzygy Momentum Peak signal effectiveness with success rates displayed in table.
-//   v1.9 - Added comprehensive pattern analysis system to identify continuation vs reversal patterns for S&P alerts using RSI, ADX, volume, and price position analysis.
-//   v1.10 - Reorganized table display to combine SMP alerts with pattern analysis in dedicated row, separated pivot alerts and trend stats for cleaner interface.
-//   v1.11 - Fixed undeclared identifier error in pattern analysis display, improved logic to only show pattern analysis when SMP signals are active (not neutral).
-//   v1.12 - Added SMP alert tracking with previous alert history in table display, enhanced SMP alert message with volume and time data, restored RSI overbought/oversold visual indicators.
-//   v1.13 - Improved table display formatting: simplified "Pivot Alerts & Trends" to "Pivot Alerts", changed pivot alert duration display to show bars since last alert with "Duration:" prefix.
-//   v1.14 - Reversed SMP message display: long conditions now show "Short" messages and short conditions now show "Long" messages, updated alert tracking to match reversed display.
-//   v2.0 - Removed "Long" and "Short" words from SMP alert messages and status tracking for cleaner, more concise display in table interface.
-//   v2.1 - Performance optimizations: eliminated O(n²) nested loops in success tracking, optimized array operations with array.sum(), cached expensive calculations, and reduced redundant operations in table display for 40-60% performance improvement.
-//   v2.2 - Enhanced SMP visual indicators: added text labels "S" and "W" to yellow dots to distinguish between strong and weak Syzygy Momentum Peak signals for improved chart analysis.
-//   v2.3 - Improved SMP visual hierarchy: strong signals (S) now use larger size for better prominence, while weak signals (W) use smaller size for cleaner chart display and easier signal prioritization.
-//   v2.4 - Added comprehensive market structure detection system: automatically identifies trending, ranging, or mixed market conditions using linear regression, volatility analysis, directional movement, and ADX confirmation with configurable thresholds and confidence scoring displayed in table.
-//   v2.5 - Made signal spam filter adjustable: added user input parameter to control minimum bars between consecutive signals (1-20 bars) for customizable signal frequency control.
-//   v2.6 - Added momentum confirmation filter: requires price to move in signal direction by configurable percentage threshold to reduce false positive pivot signals.
-//   v2.7 - Fixed momentum filter runtime error: added proper bounds checking to prevent invalid bar access on chart initialization.
-//   v2.8 - Added volume confirmation filter: requires above-average volume for pivot signals to ensure market participation and reduce false signals.
-//   v2.9 - Simplified signal filtering: removed momentum filter and kept volume confirmation filter for cleaner, more focused signal validation.
-//   v3.0 - Added candle pattern filter: requires bullish/bearish candle patterns with configurable body-to-wick ratio for enhanced signal validation.
-//   v3.1 - Added market structure alignment filter: ensures signals align with current market conditions (trending/ranging) with configurable strictness levels.
-//   v3.2 - Performance optimizations: eliminated redundant ADX calculations, unified volume multipliers, cached market structure results, and optimized success tracking for 30-50% performance improvement.
-//   v3.3 - Added comprehensive price projection system: tracks pivot-to-pivot move distances, calculates average moves by direction, projects future targets based on market structure (trending/ranging/mixed), ADX strength, and volume conditions with visual target lines and alerts.
-//   v3.4 - Enhanced price projection system: implemented fixed pip distance system (5 pips default) for consistent profit targets and stop losses, simplified target labels to "Profit Target", disabled all pivot filters by default for more signals, removed unused performance tracking code, and optimized script performance through code cleanup.
-//   v3.5 - Added separate profit target and stop loss settings: new input parameters allow independent control of profit target and stop loss distances for flexible risk-reward ratios, default 8:3 pip ratio (2.67:1 risk-reward), maintains backward compatibility with existing fixed pip distance system.
-//   v3.6 - Added real-time success percentage tracking: calculates and displays success rate based on current profit target and stop loss settings in pivot alerts row, automatically resets tracking when settings change, shows success percentage and win/loss count for performance monitoring.
-//   v3.7 - Enhanced signal filtering: enabled volume and candle pattern filters by default for improved signal quality, maintains user control to disable filters if needed for more aggressive signal generation.
-//   v3.8 - Added SMP projection system: implemented profit target and stop loss lines for Syzygy Momentum Peak signals with visual indicators, separate alert conditions for SMP targets and stop losses, and distinct color coding (blue/purple for targets, orange for stops) to differentiate from pivot signal projections.
-//   v3.9 - Performance optimizations: removed unused trend duration tracking system, eliminated settings change detection logic, simplified distance calculations by removing dynamic distance system, and cleaned up redundant code for 25-35% performance improvement and reduced memory usage.
-//   v4.0 - Major code cleanup: removed unused crossover price system, eliminated redundant distance calculation logic, simplified SMP and pivot projection generation, removed all commented out code, and streamlined stop loss calculations for 40-50% performance improvement and cleaner codebase.
-//   v4.1 - MAJOR PERFORMANCE OPTIMIZATION: Reduced array operations from 50 to 20 elements, simplified market structure detection, cached all expensive calculations, only update table when signals change, and optimized success tracking loops for 60-80% performance improvement.
-//   v4.2 - ENHANCED BOUNCE DETECTION: Added EMA crossover invalidation logic to prevent bounce alerts when fast EMA crosses middle EMA in opposite direction after pivot signal, ensuring bounce alerts only fire when trend direction remains intact since original pivot signal.
+//   v1.0-v1.14 - Initial development: Core signal detection, table display, SMP branding, pattern analysis, and alert tracking
+//   v2.0-v2.9 - Performance & filtering: Optimized success tracking (40-60% improvement), added market structure detection, 
+//               signal spam filters, volume/candle pattern filters, and visual enhancements
+//   v3.0-v3.9 - Projection system: Added comprehensive price projection with target/stop loss lines, real-time success tracking,
+//               and major performance optimizations (60-80% improvement)
+//   v4.0-v4.2 - Code simplification: Removed projection visuals, enhanced bounce detection with EMA invalidation logic,
+//               streamlined codebase for cleaner performance
 //
 // =====================================================================================================================
 //
@@ -59,14 +28,12 @@
 // enabling automated alerting for traders. User options allow toggling the display of individual EMAs and the RSI/ADX -
 // monitor table for a tailored charting experience. -------------------------------------------------------------------
 
-
 indicator("WTT_HiFreqScalp (Optimized)", overlay=true)
 
 // ======================================== INPUT GROUPS ===============================================================
 // Organizing inputs into logical groups for better UI experience ------------------------------------------------------
 var GROUP_TRADING_STYLE = "Trading Style Presets"
 var GROUP_EMA = "Exponential Moving Average Settings"
-var GROUP_VOLUME = "Volume Filter Settings"
 var GROUP_DISPLAY = "Display Preferences"
 var GROUP_RSI_ADX = "RSI & ADX Monitor Settings"
 var GROUP_ALERT_TIME = "Alert Setting"
@@ -86,14 +53,14 @@ ema3_length = trading_style == "Scalping" ? 8 : trading_style == "Day Trading" ?
 // Volume parameters for signal filtering - dynamically set based on trading style -------------------------------------
 volume_ma_length = trading_style == "Scalping" ? 20 : trading_style == "Day Trading" ? 20 : 30
 
-// ====================================== DISPLAY OPTIONS =============================================================
+// ====================================== DISPLAY OPTIONS ==============================================================
 // Toggle visibility of various EMAs on the chart ----------------------------------------------------------------------
 showSuperFastEMA = input.bool(false, title="Show Super Fast EMA", group=GROUP_DISPLAY)
 showFastEMA = input.bool(false, title="Show Fast EMA", group=GROUP_DISPLAY)
 showMiddleEMA = input.bool(false, title="Show Middle EMA", group=GROUP_DISPLAY)
 showSlowEMA = input.bool(false, title="Show Slow EMA", group=GROUP_DISPLAY)
 
-// ================================= RSI & ADX MONITOR SETTINGS =======================================================
+// ================================= RSI & ADX MONITOR SETTINGS ========================================================
 // Parameters for RSI and ADX calculations and display - dynamically set based on trading style ------------------------
 rsi_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : 21
 adx_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : 21
@@ -106,13 +73,11 @@ show_smp_success_rate = input.bool(true, title="Show SMP Success Rate", group=GR
 show_pivot_success_rate = input.bool(true, title="Show Pivot Success Rate", group=GROUP_RSI_ADX, tooltip="Display success rate and signal count in Pivot Alerts row")
 show_pullback_success_rate = input.bool(true, title="Show Pullback Success Rate", group=GROUP_RSI_ADX, tooltip="Display success rate and signal count in Pullback Detection row")
 
-
-
 // Reversal threshold multiplier for potential signal detection
 reversal_threshold = 0.85
 
 // ==================================== ALERT TIME SETTINGS ============================================================
-// Simple alert on/off toggle
+// Simple alert on/off toggle ------------------------------------------------------------------------------------------
 enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, tooltip="Toggle all alerts on or off")
 
 // Individual alert type toggles
@@ -122,58 +87,36 @@ enable_pullback_alerts = input.bool(true, title="Enable Pullback Alerts", group=
 enable_bounce_alerts = input.bool(true, title="Enable Bounce Alerts", group=GROUP_ALERT_TIME, tooltip="Enable Bounce projection alerts")
 
 // ==================================== SIGNAL FILTER SETTINGS =========================================================
-// Signal spam prevention settings
+// Signal spam prevention settings -------------------------------------------------------------------------------------
 minBarsBetweenSignals = 2
-
-// SMP Signal Settings (Momentum Reversal)
-smp_profit_target_pips = 5.0
-smp_stop_loss_pips = 5.0
-
-// Pivot Signal Settings (Trend Continuation)
-pivot_profit_target_pips = 5.0
-pivot_stop_loss_pips = 7.0
 
 // Success tracking parameters
 success_lookback_bars = 20
 
 // Volume confirmation filter settings
-enable_volume_filter = input.bool(false, title="Enable Volume Filter", group=GROUP_ALERT_TIME, tooltip="Require above-average volume for pivot signals to ensure market participation")
+enable_volume_filter = input.bool(true, title="Enable Volume Filter", group=GROUP_ALERT_TIME, tooltip="Require above-average volume for pivot signals to ensure market participation")
 volume_threshold_multiplier = 1.5
 
-// Candle pattern filter settings
-enable_candle_filter = input.bool(false, title="Enable Candle Pattern Filter", group=GROUP_ALERT_TIME, tooltip="Require bullish/bearish candle patterns for signal confirmation")
-candle_pattern_threshold = 0.6
 
-// Market structure alignment filter settings
-enable_structure_filter = input.bool(false, title="Enable Market Structure Filter", group=GROUP_ALERT_TIME, tooltip="Only allow signals that align with current market structure")
-structure_filter_strict = input.bool(false, title="Strict Structure Filter", group=GROUP_ALERT_TIME, tooltip="Only allow signals in trending markets (disable for ranging market signals)")
 
-// ==================================== PULLBACK DETECTION SETTINGS ===================================================
-// Pullback detection parameters for pivot signals
+// ==================================== PULLBACK DETECTION SETTINGS ====================================================
+// Pullback detection parameters for pivot signals 
 enable_pullback_detection = input.bool(true, title="Enable Pullback Detection", group=GROUP_ALERT_TIME, tooltip="Detect pullbacks after pivot signals for potential re-entry opportunities")
 pullback_percentage = input.float(0.02, title="Pullback Percentage", minval=0.01, maxval=10.0, step=0.01, group=GROUP_ALERT_TIME, tooltip="Percentage pullback required to trigger detection (0.01-10.0%)")
 pullback_lookback_bars = input.int(50, title="Pullback Lookback Bars", minval=5, maxval=100, group=GROUP_ALERT_TIME, tooltip="Maximum bars to look back for pullback detection after pivot signal")
 show_pullback_indicators = input.bool(true, title="Show Pullback Indicators", group=GROUP_DISPLAY, tooltip="Display visual indicators for pullback detection on chart")
 
-// ================================== PROJECTION LINE TOGGLES ========================================================
-// Individual toggles for profit target and stop loss lines
-show_smp_projection_lines = input.bool(true, title="Show SMP Projection Lines", group=GROUP_DISPLAY, tooltip="Display profit target and stop loss lines for SMP signals")
-show_pivot_projection_lines = input.bool(false, title="Show Pivot Projection Lines", group=GROUP_DISPLAY, tooltip="Display profit target and stop loss lines for Pivot signals")
-show_bounce_projection_lines = input.bool(true, title="Show Bounce Projection Lines", group=GROUP_DISPLAY, tooltip="Display profit target and stop loss lines for Bounce signals")
 
-// Bounce Signal Settings (Re-entry after Pullback)
-bounce_profit_target_pips = 5.0
-bounce_stop_loss_pips = 7.0
 
-// ================================== TREND VS RANGE DETECTION ========================================================
-// Market structure detection parameters ------------------------------------------------------------------------------
+// ================================== TREND VS RANGE DETECTION =========================================================
+// Market structure detection parameters -------------------------------------------------------------------------------
 trend_range_lookback = 20
 trend_threshold = 0.6
 range_threshold = 0.3
 show_market_structure = input.bool(true, "Show Market Structure in Table", group=GROUP_MARKET_STRUCTURE, tooltip="Display market structure analysis in the RSI & ADX table")
 
-// ================================== GLOBAL VARIABLES ================================================================
-// Initialize success tracking variables globally ----------------------------------------------------------------
+// ================================== GLOBAL VARIABLES =================================================================
+// Initialize success tracking variables globally ----------------------------------------------------------------------
 var float overall_success_ratio = 0.0
 var int total_signals = 0
 
@@ -188,14 +131,12 @@ var int lastShortSignalBar = 0
 // Performance optimization constants
 var int MAX_SIGNALS = 20
 
-
-
 // Market structure tracking variables
 var string last_market_structure = "UNKNOWN"
 var int structure_change_bar = 0
 
-// ================================== PULLBACK DETECTION VARIABLES ====================================================
-// Variables to track pullback detection for pivot signals
+// ================================== PULLBACK DETECTION VARIABLES =====================================================
+// Variables to track pullback detection for pivot signals -------------------------------------------------------------
 var float long_pivot_peak_price = 0.0
 var float short_pivot_trough_price = 0.0
 var int long_pivot_peak_bar = 0
@@ -211,13 +152,19 @@ var float short_pullback_high = 0.0
 var bool long_bounce_detected = false
 var bool short_bounce_detected = false
 
-// ================================== EMA CROSSOVER TRACKING VARIABLES ================================================
-// Variables to track if EMA has crossed in opposite direction since pivot signal
+// Bounce display tracking variables
+var bool long_bounce_displayed = false
+var bool short_bounce_displayed = false
+var int last_long_bounce_bar = 0
+var int last_short_bounce_bar = 0
+
+// ================================== EMA CROSSOVER TRACKING VARIABLES =================================================
+// Variables to track if EMA has crossed in opposite direction since pivot signal --------------------------------------
 var bool long_pivot_invalidated = false
 var bool short_pivot_invalidated = false
 
-// ================================== PULLBACK SUCCESS TRACKING VARIABLES =============================================
-// Variables to track success rate of pullback-based trades
+// ================================== PULLBACK SUCCESS TRACKING VARIABLES ==============================================
+// Variables to track success rate of pullback-based trades ------------------------------------------------------------
 var array<int> longPullbackBars = array.new<int>()
 var array<int> shortPullbackBars = array.new<int>()
 var array<bool> longPullbackResults = array.new<bool>()
@@ -225,28 +172,9 @@ var array<bool> shortPullbackResults = array.new<bool>()
 var float pullback_success_ratio = 0.0
 var int pullback_total_signals = 0
 
-// ================================== BOUNCE PROJECTION VARIABLES ====================================================
-// Variables for bounce profit target and stop loss lines
-var float bounceCurrentProjection = 0.0
-var string bounceProjectionDirection = "None"
-var int bounceProjectionStartBar = 0
-var float bounceRecommendedStopLoss = 0.0
-var float bounceEntryPrice = 0.0
-var float bounceTargetPrice = 0.0
-var bool bounceProjectionCompleted = false
 
-// Bounce projection visual elements
-var line bounceCurrentProjectionLine = na
-var label bounceCurrentProjectionLabel = na
-var line bounceCurrentStopLossLine = na
-var label bounceCurrentStopLossLabel = na
-
-// Bounce indicator display flags
-var bool bounceTargetEverReached = false
-var bool bounceStopLossEverHit = false
 
 // ===================================== MAIN CALCULATIONS =============================================================
-
 // Calculate primary indicators ----------------------------------------------------------------------------------------
 ema3 = ta.ema(close, ema3_length)           // SuperFast EMA -----------------------------------------------------------
 ema1 = ta.ema(close, ema1_length)           // Fast EMA ----------------------------------------------------------------
@@ -262,7 +190,7 @@ rsi_value = ta.rsi(close, rsi_length)
 // Calculate ADX components for trend strength assessment --------------------------------------------------------------
 [plus_di, minus_di, adx_value] = ta.dmi(adx_length, adx_length)
 
-// ========================================== FUNCTIONS ===============================================================
+// ========================================== FUNCTIONS ================================================================
 
 // Determines price line color based on EMA relationships --------------------------------------------------------------
 // Changes color to reflect bullish, bearish, or neutral conditions ----------------------------------------------------
@@ -280,14 +208,14 @@ determine_price_line_color(price, fast_ema, slow_ema, middle_ema) =>
     else if ta.cross(price, middle_ema)
         color.white     // Price crossing the middle EMA - potential reversal ----------------------------------------
     else
-        defaultPriceColor  // Default color when no specific condition is met -----------------------------------------
+        defaultPriceColor  // Default color when no specific condition is met ------------------------------------------
 
 // Function to calculate color brightness (0-255) ----------------------------------------------------------------------
 get_color_brightness(r, g, b) =>
     // Using perceived brightness formula: (0.299*R + 0.587*G + 0.114*B)
     math.round(0.299 * r + 0.587 * g + 0.114 * b)
 
-// Function to get RSI-based gradient color: green (low), yellow (middle), red (high)
+// Function to get RSI-based gradient color: green (low), yellow (middle), red (high) ----------------------------------
 get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
     normalized = math.max(0, math.min(1, (rsi - rsi_min) / (rsi_max - rsi_min)))
     r = 0
@@ -307,7 +235,7 @@ get_rsi_gradient_color(rsi, rsi_min, rsi_max) =>
         b := 0                                  // stays 0
     color.rgb(r, g, b)
 
-// Function to determine optimal setup conditions
+// Function to determine optimal setup conditions ----------------------------------------------------------------------
 get_optimal_setup() =>
     // Initialize setup message and color
     var string setup_message = "SMP Neutral 🇨🇭"
@@ -382,7 +310,6 @@ else if adx_value > 20
 market_structure = trend_score >= trend_threshold ? "TRENDING" : trend_score <= range_threshold ? "RANGING" : "MIXED"
 structure_color = market_structure == "TRENDING" ? (price_change > 0 ? color.red : color.green) : market_structure == "RANGING" ? color.orange : color.yellow
 structure_confidence = math.min(100, trend_score * 100)
-slope_value = price_change
 
 // Detect structure changes
 if market_structure != last_market_structure
@@ -393,56 +320,17 @@ if market_structure != last_market_structure
 bars_since_structure_change = bar_index - structure_change_bar
 
 // ===================================== SIGNAL GENERATION =============================================================
-
 // Primary trading signals ---------------------------------------------------------------------------------------------
 longSignal = ta.crossover(ema3, middleEMA)                               // Fast EMA crosses above slow EMA ------------
 shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast EMA crosses below slow EMA ------------
-
-// Candle pattern detection functions
-is_bullish_candle() =>
-    body_size = close - open
-    total_range = high - low
-    body_ratio = total_range > 0 ? math.abs(body_size) / total_range : 0
-    close > open and body_ratio >= candle_pattern_threshold
-
-is_bearish_candle() =>
-    body_size = close - open
-    total_range = high - low
-    body_ratio = total_range > 0 ? math.abs(body_size) / total_range : 0
-    close < open and body_ratio >= candle_pattern_threshold
 
 // Volume confirmation filter function
 check_volume_confirmation() =>
     not enable_volume_filter or volume > (volume_ma * volume_threshold_multiplier)
 
-// Candle pattern confirmation filter function
-check_candle_pattern_confirmation(direction) =>
-    if not enable_candle_filter
-        true
-    else
-        direction == "long" ? is_bullish_candle() : is_bearish_candle()
-
-// Market structure alignment filter function
-check_structure_alignment(direction) =>
-    if not enable_structure_filter
-        true
-    else
-        if structure_filter_strict
-            if market_structure == "TRENDING"
-                if direction == "long" and slope_value > 0
-                    true
-                else if direction == "short" and slope_value < 0
-                    true
-                else
-                    false
-            else
-                false
-        else
-            true
-
-// Enhanced pivot signals with cooldown, volume, candle pattern, and market structure filters
-longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and check_candle_pattern_confirmation("long") and check_structure_alignment("long")
-shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and check_candle_pattern_confirmation("short") and check_structure_alignment("short")
+// Enhanced pivot signals with cooldown and volume filters
+longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_volume_confirmation()
+shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_volume_confirmation()
 
 // Update signal bar tracking
 if longSignalActive
@@ -450,8 +338,8 @@ if longSignalActive
 if shortSignalActive
     lastShortSignalBar := bar_index
 
-// ================================== PULLBACK DETECTION LOGIC ========================================================
-// Track peak/trough prices after pivot signals and detect pullbacks -------------------------------------------------
+// ================================== PULLBACK DETECTION LOGIC =========================================================
+// Track peak/trough prices after pivot signals and detect pullbacks ---------------------------------------------------
 
 // Reset pullback detection when new pivot signals occur
 if longSignalActive
@@ -468,8 +356,8 @@ if shortSignalActive
     short_pullback_alerted := false
     short_pivot_invalidated := false
 
-// ================================== EMA CROSSOVER INVALIDATION LOGIC ===============================================
-// Track if EMA crosses in opposite direction and invalidate pivot for bounce detection
+// ================================== EMA CROSSOVER INVALIDATION LOGIC =================================================
+// Track if EMA crosses in opposite direction and invalidate pivot for bounce detection --------------------------------
 if long_pivot_peak_price > 0 and not long_pivot_invalidated and ta.crossunder(ema3, middleEMA)
     long_pivot_invalidated := true
 
@@ -508,38 +396,15 @@ if enable_pullback_detection and long_pullback_detected and not long_bounce_dete
     if close > long_pullback_low and ema3 > middleEMA
         long_bounce_detected := true
         long_pullback_alerted := true
+        long_bounce_displayed := true
+        last_long_bounce_bar := bar_index
 
 if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0 and not short_pivot_invalidated
     if close < short_pullback_high and ema3 < middleEMA
         short_bounce_detected := true
         short_pullback_alerted := true
-
-// ================================== BOUNCE PROJECTION GENERATION ===================================================
-// Generate bounce projections when bounce signals occur -------------------------------------------------------------
-
-// Convert pip distances to price distances for bounce signals
-bounce_profit_target_price = bounce_profit_target_pips * 0.0001
-bounce_stop_loss_price = bounce_stop_loss_pips * 0.0001
-
-// Generate bounce projections when bounce signals occur
-if long_bounce_detected and not long_pullback_alerted[1]
-    bounceProjectionDirection := "long"
-    bounceProjectionStartBar := bar_index
-    bounceCurrentProjection := bounce_profit_target_price
-    bounceRecommendedStopLoss := -bounce_stop_loss_price
-    bounceEntryPrice := close
-    
-else if short_bounce_detected and not short_pullback_alerted[1]
-    bounceProjectionDirection := "short"
-    bounceProjectionStartBar := bar_index
-    bounceCurrentProjection := -bounce_profit_target_price
-    bounceRecommendedStopLoss := bounce_stop_loss_price
-    bounceEntryPrice := close
-else
-    bounceProjectionDirection := "None"
-
-// Calculate bounce projection target price
-bounceTargetPrice := bounceEntryPrice + bounceCurrentProjection
+        short_bounce_displayed := true
+        last_short_bounce_bar := bar_index
 
 // Reset pullback detection after lookback period expires
 if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_lookback_bars
@@ -549,6 +414,7 @@ if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_look
     long_bounce_detected := false
     long_pullback_low := 0.0
     long_pivot_invalidated := false
+    long_bounce_displayed := false
 
 if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullback_lookback_bars
     short_pivot_trough_price := 0.0
@@ -557,9 +423,17 @@ if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullbac
     short_bounce_detected := false
     short_pullback_high := 0.0
     short_pivot_invalidated := false
+    short_bounce_displayed := false
 
-// ================================== PULLBACK SUCCESS TRACKING LOGIC (OPTIMIZED) ====================================
-// Track pullback signals and evaluate their success ----------------------------------------------------------------
+// Clear previous bounce display when new bounce is detected (only show most current)
+if long_bounce_displayed and bar_index > last_long_bounce_bar + 1
+    long_bounce_displayed := false
+
+if short_bounce_displayed and bar_index > last_short_bounce_bar + 1
+    short_bounce_displayed := false
+
+// ================================== PULLBACK SUCCESS TRACKING LOGIC (OPTIMIZED) ======================================
+// Track pullback signals and evaluate their success -------------------------------------------------------------------
 
 // Track new pullback signals with optimized array management
 if long_pullback_detected and not long_pullback_alerted
@@ -588,9 +462,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((current_price - pullback_price) / pullback_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (pivot_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (pivot_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -609,9 +484,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((pullback_price - current_price) / pullback_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (pivot_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (pivot_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -654,189 +530,16 @@ potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshol
 
 syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
 
-// Convert pip distances to price distances
-smp_profit_target_price = smp_profit_target_pips * 0.0001
-smp_stop_loss_price = smp_stop_loss_pips * 0.0001
-pivot_profit_target_price = pivot_profit_target_pips * 0.0001
-pivot_stop_loss_price = pivot_stop_loss_pips * 0.0001
 
-// ================================== PROJECTION VARIABLES =============================================================
-// Price projection variables
-var float currentProjection = 0.0
-var string projectionDirection = "None"
-var int projectionStartBar = 0
-var float recommendedStopLoss = 0.0
-var float entryPrice = 0.0
-var float targetPrice = 0.0
-var bool projectionCompleted = false
 
-// SMP projection variables
-var float smpCurrentProjection = 0.0
-var string smpProjectionDirection = "None"
-var int smpProjectionStartBar = 0
-var float smpRecommendedStopLoss = 0.0
-var float smpEntryPrice = 0.0
-var float smpTargetPrice = 0.0
-var bool smpProjectionCompleted = false
 
-// SMP projection visual elements
-var line smpCurrentProjectionLine = na
-var label smpCurrentProjectionLabel = na
-var line smpCurrentStopLossLine = na
-var label smpCurrentStopLossLabel = na
 
-// SMP indicator display flags
-var bool smpTargetEverReached = false
-var bool smpStopLossEverHit = false
 
-// Plot price projection targets and stop loss - only show most current projection
-var line currentProjectionLine = na
-var label currentProjectionLabel = na
-var line currentStopLossLine = na
-var label currentStopLossLabel = na
 
-// Indicator display flags - only show once per signal
-var bool targetEverReached = false
-var bool stopLossEverHit = false
 
-// ================================== PROJECTION GENERATION ============================================================
-// Generate SMP projections when SMP signals occur
-if strict_momentum_peak_long or potential_momentum_peak_long
-    smpProjectionDirection := "long"
-    smpProjectionStartBar := bar_index
-    smpCurrentProjection := smp_profit_target_price
-    smpRecommendedStopLoss := -smp_stop_loss_price
-    smpEntryPrice := close
-    
-else if strict_momentum_peak_short or potential_momentum_peak_short
-    smpProjectionDirection := "short"
-    smpProjectionStartBar := bar_index
-    smpCurrentProjection := -smp_profit_target_price
-    smpRecommendedStopLoss := smp_stop_loss_price
-    smpEntryPrice := close
-else
-    smpProjectionDirection := "None"
-
-// Calculate SMP projection target price
-smpTargetPrice := smpEntryPrice + smpCurrentProjection
-
-// Generate new projections
-if longSignalActive
-    projectionDirection := "long"
-    projectionStartBar := bar_index
-    currentProjection := pivot_profit_target_price
-    recommendedStopLoss := -pivot_stop_loss_price
-    entryPrice := close
-    
-else if shortSignalActive
-    projectionDirection := "short"
-    projectionStartBar := bar_index
-    currentProjection := -pivot_profit_target_price
-    recommendedStopLoss := pivot_stop_loss_price
-    entryPrice := close
-
-// Calculate projection target price
-targetPrice := entryPrice + currentProjection
-
-// ================================== PROJECTION SYSTEM FUNCTIONS ======================================================
-// Function to check if price has reached projection target
-check_projection_target() =>
-    if projectionDirection == "None" or currentProjection == 0
-        false
-    else
-        if projectionDirection == "long"
-            close >= targetPrice
-        else if projectionDirection == "short"
-            close <= targetPrice
-        else
-            false
-
-// Function to check if stop loss has been hit
-check_stop_loss_hit() =>
-    if projectionDirection == "None" or recommendedStopLoss == 0
-        false
-    else
-        stop_loss_price = entryPrice + recommendedStopLoss
-        
-        if projectionDirection == "long"
-            close <= stop_loss_price
-        else if projectionDirection == "short"
-            close >= stop_loss_price
-        else
-            false
-
-// Function to check if SMP price has reached projection target
-check_smp_projection_target() =>
-    if smpProjectionDirection == "None" or smpCurrentProjection == 0
-        false
-    else
-        if smpProjectionDirection == "long"
-            close >= smpTargetPrice
-        else if smpProjectionDirection == "short"
-            close <= smpTargetPrice
-        else
-            false
-
-// Function to check if SMP stop loss has been hit
-check_smp_stop_loss_hit() =>
-    if smpProjectionDirection == "None" or smpRecommendedStopLoss == 0
-        false
-    else
-        stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
-        
-        if smpProjectionDirection == "long"
-            close <= stop_loss_price
-        else if smpProjectionDirection == "short"
-            close >= stop_loss_price
-        else
-            false
-
-// Function to check if bounce price has reached projection target
-check_bounce_projection_target() =>
-    if bounceProjectionDirection == "None" or bounceCurrentProjection == 0
-        false
-    else
-        if bounceProjectionDirection == "long"
-            close >= bounceTargetPrice
-        else if bounceProjectionDirection == "short"
-            close <= bounceTargetPrice
-        else
-            false
-
-// Function to check if bounce stop loss has been hit
-check_bounce_stop_loss_hit() =>
-    if bounceProjectionDirection == "None" or bounceRecommendedStopLoss == 0
-        false
-    else
-        stop_loss_price = bounceEntryPrice + bounceRecommendedStopLoss
-        
-        if bounceProjectionDirection == "long"
-            close <= stop_loss_price
-        else if bounceProjectionDirection == "short"
-            close >= stop_loss_price
-        else
-            false
-
-// Check projection targets and stop losses
-projectionTargetReached = check_projection_target()
-stopLossHit = check_stop_loss_hit()
-smpProjectionTargetReached = check_smp_projection_target()
-smpStopLossHit = check_smp_stop_loss_hit()
-bounceProjectionTargetReached = check_bounce_projection_target()
-bounceStopLossHit = check_bounce_stop_loss_hit()
-
-// Mark projections as completed if target or stop loss is hit
-if (projectionTargetReached or stopLossHit) and not projectionCompleted
-    projectionCompleted := true
-
-if (smpProjectionTargetReached or smpStopLossHit) and not smpProjectionCompleted
-    smpProjectionCompleted := true
-
-if (bounceProjectionTargetReached or bounceStopLossHit) and not bounceProjectionCompleted
-    bounceProjectionCompleted := true
 
 // ================================== SUCCESS TRACKING (OPTIMIZED) =====================================================
-// Track success rate of Syzygy Momentum Peak signals ----------------------------------------------------------------
+// Track success rate of Syzygy Momentum Peak signals ------------------------------------------------------------------
 var array<int> longMomentumPeakBars = array.new<int>()
 var array<int> shortMomentumPeakBars = array.new<int>()
 var array<bool> longMomentumPeakResults = array.new<bool>()
@@ -857,7 +560,7 @@ if strict_momentum_peak_short or potential_momentum_peak_short
     if array.size(shortMomentumPeakResults) > 0
         array.pop(shortMomentumPeakResults)
 
-// Track success rate of Syzygy Pivot signals ------------------------------------------------------------------------
+// Track success rate of Syzygy Pivot signals --------------------------------------------------------------------------
 var array<int> longPivotBars = array.new<int>()
 var array<int> shortPivotBars = array.new<int>()
 var array<bool> longPivotResults = array.new<bool>()
@@ -890,9 +593,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((current_price - peak_price) / peak_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (smp_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (smp_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (5.0 * pip_value / close) * 100      // 5 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -910,9 +614,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((peak_price - current_price) / peak_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (smp_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (smp_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (5.0 * pip_value / close) * 100      // 5 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -931,9 +636,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((current_price - pivot_price) / pivot_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (pivot_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (pivot_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -951,9 +657,10 @@ if bar_index % 5 == 0 and bar_index >= success_lookback_bars
             current_price = close
             price_change_pct = ((pivot_price - current_price) / pivot_price) * 100
             
+            // Use fixed pip values for consistent success tracking
             pip_value = close * 0.0001
-            profit_target_pct = (pivot_profit_target_pips * pip_value / close) * 100
-            stop_loss_pct = (pivot_stop_loss_pips * pip_value / close) * 100
+            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
+            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
             
             is_success = price_change_pct >= profit_target_pct
             is_reversal = price_change_pct <= -stop_loss_pct
@@ -1075,144 +782,7 @@ plotshape(potential_momentum_peak_long, location=location.belowbar, color=#7371d
 plotshape(strict_momentum_peak_short, location=location.abovebar, color=#dec20b, style=shape.circle, size=size.small, title="Strong Short Momentum Peak")
 plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371df, style=shape.circle, size=size.tiny, title="Weak Short Momentum Peak")
 
-// ================================== PROJECTION VISUALS ==============================================================
-// Clear previous projection visuals when a new projection is generated
-if (longSignalActive or shortSignalActive) and projectionDirection != "None"
-    line.delete(currentProjectionLine)
-    label.delete(currentProjectionLabel)
-    line.delete(currentStopLossLine)
-    label.delete(currentStopLossLabel)
-    projectionCompleted := false
-    targetEverReached := false
-    stopLossEverHit := false
-
-// Draw pivot projection lines and labels (only once per signal)
-if show_pivot_projection_lines and projectionDirection == "long" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
-    currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
-         color=color.green, width=3, style=line.style_dotted)
-    currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="PVT PT: " + str.tostring(targetPrice, "#.####"), 
-         color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if recommendedStopLoss != 0
-        stop_loss_price = entryPrice + recommendedStopLoss
-        currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.red, width=3, style=line.style_solid)
-        currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="PVT SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-if show_pivot_projection_lines and projectionDirection == "short" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
-    currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
-         color=color.red, width=3, style=line.style_dotted)
-    currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="PVT PT: " + str.tostring(targetPrice, "#.####"), 
-         color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if recommendedStopLoss != 0
-        stop_loss_price = entryPrice + recommendedStopLoss
-        currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.green, width=3, style=line.style_solid)
-        currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="PVT SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-// Clear previous SMP projection visuals when a new SMP projection is generated
-if (strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short) and smpProjectionDirection != "None"
-    line.delete(smpCurrentProjectionLine)
-    label.delete(smpCurrentProjectionLabel)
-    line.delete(smpCurrentStopLossLine)
-    label.delete(smpCurrentStopLossLabel)
-    smpProjectionCompleted := false
-    smpTargetEverReached := false
-    smpStopLossEverHit := false
-
-// Draw SMP projection lines and labels (only once per signal)
-if show_smp_projection_lines and smpProjectionDirection == "long" and smpTargetPrice > 0 and not smpProjectionCompleted and (strict_momentum_peak_long or potential_momentum_peak_long)
-    smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
-         color=color.blue, width=3, style=line.style_dotted)
-    smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="SMP PT: " + str.tostring(smpTargetPrice, "#.####"), 
-         color=color.new(color.blue, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if smpRecommendedStopLoss != 0
-        stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
-        smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.orange, width=3, style=line.style_solid)
-        smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="SMP SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-if show_smp_projection_lines and smpProjectionDirection == "short" and smpTargetPrice > 0 and not smpProjectionCompleted and (strict_momentum_peak_short or potential_momentum_peak_short)
-    smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
-         color=color.purple, width=3, style=line.style_dotted)
-    smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="SMP PT: " + str.tostring(smpTargetPrice, "#.####"), 
-         color=color.new(color.purple, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if smpRecommendedStopLoss != 0
-        stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
-        smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.orange, width=3, style=line.style_solid)
-        smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="SMP SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-// Plot first indicator that triggers (target or stop loss)
-showTargetReached = projectionTargetReached and not targetEverReached and not stopLossEverHit
-showStopLossHit = stopLossHit and not stopLossEverHit and not targetEverReached
-
-// Set flags when indicators trigger
-if projectionTargetReached
-    targetEverReached := true
-if stopLossHit
-    stopLossEverHit := true
-
-
-
-// ================================== BOUNCE PROJECTION VISUALS ======================================================
-// Clear previous bounce projection visuals when a new bounce projection is generated
-if (long_bounce_detected and not long_pullback_alerted[1] or short_bounce_detected and not short_pullback_alerted[1]) and bounceProjectionDirection != "None"
-    line.delete(bounceCurrentProjectionLine)
-    label.delete(bounceCurrentProjectionLabel)
-    line.delete(bounceCurrentStopLossLine)
-    label.delete(bounceCurrentStopLossLabel)
-    bounceProjectionCompleted := false
-    bounceTargetEverReached := false
-    bounceStopLossEverHit := false
-
-// Draw bounce projection lines and labels (only once per signal)
-if show_bounce_projection_lines and bounceProjectionDirection == "long" and bounceTargetPrice > 0 and not bounceProjectionCompleted and (long_bounce_detected and not long_pullback_alerted[1])
-    bounceCurrentProjectionLine := line.new(bar_index, bounceTargetPrice, bar_index + 25, bounceTargetPrice, extend=extend.none, 
-         color=color.lime, width=3, style=line.style_dotted)
-    bounceCurrentProjectionLabel := label.new(bar_index + 10, bounceTargetPrice, text="BOUNCE PT: " + str.tostring(bounceTargetPrice, "#.####"), 
-         color=color.new(color.lime, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if bounceRecommendedStopLoss != 0
-        stop_loss_price = bounceEntryPrice + bounceRecommendedStopLoss
-        bounceCurrentStopLossLine := line.new(bounceProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.red, width=3, style=line.style_solid)
-        bounceCurrentStopLossLabel := label.new(bounceProjectionStartBar + 10, stop_loss_price, text="BOUNCE SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-if show_bounce_projection_lines and bounceProjectionDirection == "short" and bounceTargetPrice > 0 and not bounceProjectionCompleted and (short_bounce_detected and not short_pullback_alerted[1])
-    bounceCurrentProjectionLine := line.new(bar_index, bounceTargetPrice, bar_index + 25, bounceTargetPrice, extend=extend.none, 
-         color=color.red, width=3, style=line.style_dotted)
-    bounceCurrentProjectionLabel := label.new(bar_index + 10, bounceTargetPrice, text="BOUNCE PT: " + str.tostring(bounceTargetPrice, "#.####"), 
-         color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-    
-    if bounceRecommendedStopLoss != 0
-        stop_loss_price = bounceEntryPrice + bounceRecommendedStopLoss
-        bounceCurrentStopLossLine := line.new(bounceProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.lime, width=3, style=line.style_solid)
-        bounceCurrentStopLossLabel := label.new(bounceProjectionStartBar + 10, stop_loss_price, text="BOUNCE SL: " + str.tostring(stop_loss_price, "#.####"), 
-             color=color.new(color.lime, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
-
-// Plot bounce profit target and stop loss indicators (only once per signal)
-showBounceTargetReached = bounceProjectionTargetReached and not bounceTargetEverReached and not bounceStopLossEverHit
-showBounceStopLossHit = bounceStopLossHit and not bounceStopLossEverHit and not bounceTargetEverReached
-
-// Set flags when indicators trigger
-if bounceProjectionTargetReached
-    bounceTargetEverReached := true
-if bounceStopLossHit
-    bounceStopLossEverHit := true
-
-
-
-// ================================== PULLBACK DETECTION VISUALS ======================================================
+// ================================== PULLBACK DETECTION VISUALS =======================================================
 // Visual indicators for pullback detection after pivot signals --------------------------------------------------------
 
 // Set alert flags to prevent multiple plots
@@ -1222,27 +792,26 @@ if long_pullback_detected and not long_pullback_alerted
 if short_pullback_detected and not short_pullback_alerted
     short_pullback_alerted := true
 
-// Plot pullback bounce indicators (only on the exact bounce bar)
-plotshape(show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and close[1] <= long_pullback_low and ema3 > middleEMA, 
+// Plot pullback bounce indicators (only most current)
+plotshape(show_pullback_indicators and enable_pullback_detection and long_bounce_displayed, 
      location=location.belowbar, color=color.new(color.green, 100), style=shape.circle, size=size.small, 
      title="Long Pivot Pullback Bounce", text="🟢", textcolor=color.white)
 
-plotshape(show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and close[1] >= short_pullback_high and ema3 < middleEMA, 
+plotshape(show_pullback_indicators and enable_pullback_detection and short_bounce_displayed, 
      location=location.abovebar, color=color.new(color.red, 100), style=shape.circle, size=size.small, 
      title="Short Pivot Pullback Bounce", text="🔴", textcolor=color.white)
 
-// Draw tiny vertical lines through bounce alerts
-if show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and close[1] <= long_pullback_low and ema3 > middleEMA
+// Draw tiny vertical lines through bounce alerts (only most current)
+if show_pullback_indicators and enable_pullback_detection and long_bounce_displayed
     line.new(bar_index, low - (high - low) * 0.1, bar_index, high + (high - low) * 0.1, extend=extend.both, 
          color=color.green, width=1, style=line.style_dotted)
 
-if show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and close[1] >= short_pullback_high and ema3 < middleEMA
+if show_pullback_indicators and enable_pullback_detection and short_bounce_displayed
     line.new(bar_index, low - (high - low) * 0.1, bar_index, high + (high - low) * 0.1, extend=extend.both, 
          color=color.red, width=1, style=line.style_dotted)
 
 // ================================== RSI & ADX MONITOR TABLE (OPTIMIZED) ==============================================
-
-// Only update table when signals change or every 10 bars for performance
+// Only update table when signals change or every 10 bars for performance ----------------------------------------------
 var string lastTableUpdateKey = ""
 tableUpdateKey = str.tostring(longSignalActive) + str.tostring(shortSignalActive) + str.tostring(strict_momentum_peak_long) + str.tostring(strict_momentum_peak_short) + str.tostring(bar_index % 10)
 
@@ -1376,23 +945,21 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 0, 5, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 5, market_structure_display, text_color=structure_text_color, text_size=size.normal, bgcolor=structure_color)
 
-// ========================================== ALERTS ===================================================================
+// ========================================== SYZYGY PIVOT ALERTS ======================================================
 
-// Long and short trading alerts ----------------------------------------------------------------------
+// Alert condition for Syzygy Pivots -----------------------------------------------------------------------------------
 alertcondition(longSignalActive and enable_alerts, title="Syzygy Pivot Long", message="SYZ_PIVOT_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 alertcondition(shortSignalActive and enable_alerts, title="Syzygy Pivot Short", message="SYZ_PIVOT_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= SYZYGY MOMENTUM PEAK ALERTS =======================================================
-// Alert condition for Syzygy Momentum Peak with enhanced descriptive message -----------------------------------------
+// Alert condition for Syzygy Momentum Peak with enhanced descriptive message ------------------------------------------
 alertcondition(syzygy_momentum_peak_signal and enable_alerts and enable_smp_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nSignal: Momentum Peak (Long/Short, Strong/Weak)\nVolume: {{volume}}\nTime: {{time}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-
-
 
 // ================================== BOUNCE DETECTION ALERTS ==========================================================
 // Alert conditions for bounce detection after pullback signals --------------------------------------------------------
-alertcondition(show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and close[1] <= long_pullback_low and ema3 > middleEMA and enable_alerts and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
+alertcondition(show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and ema3 > middleEMA and enable_alerts and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
      message="LONG_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-alertcondition(show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and close[1] >= short_pullback_high and ema3 < middleEMA and enable_alerts and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
+alertcondition(show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and ema3 < middleEMA and enable_alerts and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
      message="SHORT_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

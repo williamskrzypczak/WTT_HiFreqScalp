@@ -2,7 +2,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v4.1 (Performance Optimized)
+// Revision: v4.2 (Bounce Detection Enhanced)
 //
 // =====================================================================================================================
 //
@@ -44,6 +44,7 @@
 //   v3.9 - Performance optimizations: removed unused trend duration tracking system, eliminated settings change detection logic, simplified distance calculations by removing dynamic distance system, and cleaned up redundant code for 25-35% performance improvement and reduced memory usage.
 //   v4.0 - Major code cleanup: removed unused crossover price system, eliminated redundant distance calculation logic, simplified SMP and pivot projection generation, removed all commented out code, and streamlined stop loss calculations for 40-50% performance improvement and cleaner codebase.
 //   v4.1 - MAJOR PERFORMANCE OPTIMIZATION: Reduced array operations from 50 to 20 elements, simplified market structure detection, cached all expensive calculations, only update table when signals change, and optimized success tracking loops for 60-80% performance improvement.
+//   v4.2 - ENHANCED BOUNCE DETECTION: Added EMA crossover invalidation logic to prevent bounce alerts when fast EMA crosses middle EMA in opposite direction after pivot signal, ensuring bounce alerts only fire when trend direction remains intact since original pivot signal.
 //
 // =====================================================================================================================
 //
@@ -317,29 +318,29 @@ get_optimal_setup() =>
     
     // Check for optimal long setup
     if rsi_value <= rsi_oversold and adx_value >= adx_threshold and volume > (volume_ma * volume_threshold_multiplier)
-        setup_message := "Syzygy Momentum Peak 🚀"
+        setup_message := "SMP 🚀"
         setup_color := flash ? color.red : color.new(color.red, 90)
     // Check for optimal short setup
     else if rsi_value >= rsi_overbought and adx_value >= adx_threshold and volume > (volume_ma * volume_threshold_multiplier)
-        setup_message := "Syzygy Momentum Peak 📉"
+        setup_message := "SMP 📉"
         setup_color := flash ? color.green : color.new(color.green, 90)
     // Check for potential long setup
     else if rsi_value <= (rsi_oversold * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_threshold_multiplier * 0.8)
-        setup_message := "Syzygy Momentum Peak ⚡"
+        setup_message := "SMP ⚡"
         setup_color := flash ? color.maroon : color.new(color.maroon, 90)
     // Check for potential short setup
     else if rsi_value >= (rsi_overbought * reversal_threshold) and adx_value >= (adx_threshold * 0.8) and volume > (volume_ma * volume_threshold_multiplier * 0.8)
-        setup_message := "Syzygy Momentum Peak ⚡"
+        setup_message := "SMP ⚡"
         setup_color := flash ? color.lime : color.new(color.lime, 90)
     else
-        setup_message := "SMP Neutral 🇨🇭"
+        setup_message := "SMP 🇨🇭"
         setup_color := color.gray
     
     // Add success rate to setup message if we have data - optimized string concatenation
-    if setup_message == "SMP Neutral 🇨🇭"
+    if setup_message == "SMP 🇨🇭"
         setup_message := setup_message + " (neutral)"
     else if total_signals > 0
-        success_interpretation = overall_success_ratio >= 60 ? " (High good continuation)" : overall_success_ratio >= 40 ? " (Med mixed signals)" : " (Low potential reversal)"
+        success_interpretation = overall_success_ratio >= 60 ? " (High)" : overall_success_ratio >= 40 ? " (Med)" : " (Low)"
         setup_message := setup_message + success_interpretation
     else
         setup_message := setup_message + " (neutral)"
@@ -1004,24 +1005,24 @@ var int lastSMPAlertBarIndex = 0
 
 // Update alert status based on conditions - track all signal types ---------------------------------------------------
 if longSignalActive
-    lastAlertType := "SYZ_PIVOT_LONG"
+    lastAlertType := "LONG"
     lastAlertBarIndex := bar_index
 else if shortSignalActive
-    lastAlertType := "SYZ_PIVOT_SHORT"
+    lastAlertType := "SHORT"
     lastAlertBarIndex := bar_index
 
 // Update SMP alert status based on conditions
 if strict_momentum_peak_long
-    lastSMPAlertType := "SMP_STRONG"
+    lastSMPAlertType := "STRONG"
     lastSMPAlertBarIndex := bar_index
 else if strict_momentum_peak_short
-    lastSMPAlertType := "SMP_STRONG"
+    lastSMPAlertType := "STRONG"
     lastSMPAlertBarIndex := bar_index
 else if potential_momentum_peak_long
-    lastSMPAlertType := "SMP_WEAK"
+    lastSMPAlertType := "WEAK"
     lastSMPAlertBarIndex := bar_index
 else if potential_momentum_peak_short
-    lastSMPAlertType := "SMP_WEAK"
+    lastSMPAlertType := "WEAK"
     lastSMPAlertBarIndex := bar_index
 
 // Calculate bars since last alert -------------------------------------------------------------------------------------
@@ -1088,27 +1089,27 @@ if (longSignalActive or shortSignalActive) and projectionDirection != "None"
 // Draw pivot projection lines and labels (only once per signal)
 if show_pivot_projection_lines and projectionDirection == "long" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
     currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
-         color=color.green, width=1, style=line.style_dashed)
+         color=color.green, width=3, style=line.style_dotted)
     currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="PVT PT: " + str.tostring(targetPrice, "#.####"), 
          color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if recommendedStopLoss != 0
         stop_loss_price = entryPrice + recommendedStopLoss
         currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.red, width=1, style=line.style_solid)
+             color=color.red, width=3, style=line.style_solid)
         currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="PVT SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
 if show_pivot_projection_lines and projectionDirection == "short" and targetPrice > 0 and not projectionCompleted and (longSignalActive or shortSignalActive)
     currentProjectionLine := line.new(bar_index, targetPrice, bar_index + 25, targetPrice, extend=extend.none, 
-         color=color.red, width=1, style=line.style_dashed)
+         color=color.red, width=3, style=line.style_dotted)
     currentProjectionLabel := label.new(bar_index + 10, targetPrice, text="PVT PT: " + str.tostring(targetPrice, "#.####"), 
          color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if recommendedStopLoss != 0
         stop_loss_price = entryPrice + recommendedStopLoss
         currentStopLossLine := line.new(projectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.green, width=1, style=line.style_solid)
+             color=color.green, width=3, style=line.style_solid)
         currentStopLossLabel := label.new(projectionStartBar + 10, stop_loss_price, text="PVT SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.green, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
@@ -1125,27 +1126,27 @@ if (strict_momentum_peak_long or strict_momentum_peak_short or potential_momentu
 // Draw SMP projection lines and labels (only once per signal)
 if show_smp_projection_lines and smpProjectionDirection == "long" and smpTargetPrice > 0 and not smpProjectionCompleted and (strict_momentum_peak_long or potential_momentum_peak_long)
     smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
-         color=color.blue, width=1, style=line.style_dashed)
+         color=color.blue, width=3, style=line.style_dotted)
     smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="SMP PT: " + str.tostring(smpTargetPrice, "#.####"), 
          color=color.new(color.blue, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if smpRecommendedStopLoss != 0
         stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
         smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.orange, width=1, style=line.style_solid)
+             color=color.orange, width=3, style=line.style_solid)
         smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="SMP SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
 if show_smp_projection_lines and smpProjectionDirection == "short" and smpTargetPrice > 0 and not smpProjectionCompleted and (strict_momentum_peak_short or potential_momentum_peak_short)
     smpCurrentProjectionLine := line.new(bar_index, smpTargetPrice, bar_index + 25, smpTargetPrice, extend=extend.none, 
-         color=color.purple, width=1, style=line.style_dashed)
+         color=color.purple, width=3, style=line.style_dotted)
     smpCurrentProjectionLabel := label.new(bar_index + 10, smpTargetPrice, text="SMP PT: " + str.tostring(smpTargetPrice, "#.####"), 
          color=color.new(color.purple, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if smpRecommendedStopLoss != 0
         stop_loss_price = smpEntryPrice + smpRecommendedStopLoss
         smpCurrentStopLossLine := line.new(smpProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.orange, width=1, style=line.style_solid)
+             color=color.orange, width=3, style=line.style_solid)
         smpCurrentStopLossLabel := label.new(smpProjectionStartBar + 10, stop_loss_price, text="SMP SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.orange, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
@@ -1159,11 +1160,7 @@ if projectionTargetReached
 if stopLossHit
     stopLossEverHit := true
 
-plotshape(showTargetReached, location=location.abovebar, color=color.new(color.yellow, 100), style=shape.circle, size=size.tiny, 
-     title="Projection Target Reached", text="🎯", textcolor=color.black)
 
-plotshape(showStopLossHit, location=location.belowbar, color=color.new(color.red, 100), style=shape.circle, size=size.small, 
-     title="Stop Loss Hit", text="💀", textcolor=color.white)
 
 // ================================== BOUNCE PROJECTION VISUALS ======================================================
 // Clear previous bounce projection visuals when a new bounce projection is generated
@@ -1179,27 +1176,27 @@ if (long_bounce_detected and not long_pullback_alerted[1] or short_bounce_detect
 // Draw bounce projection lines and labels (only once per signal)
 if show_bounce_projection_lines and bounceProjectionDirection == "long" and bounceTargetPrice > 0 and not bounceProjectionCompleted and (long_bounce_detected and not long_pullback_alerted[1])
     bounceCurrentProjectionLine := line.new(bar_index, bounceTargetPrice, bar_index + 25, bounceTargetPrice, extend=extend.none, 
-         color=color.lime, width=1, style=line.style_dashed)
+         color=color.lime, width=3, style=line.style_dotted)
     bounceCurrentProjectionLabel := label.new(bar_index + 10, bounceTargetPrice, text="BOUNCE PT: " + str.tostring(bounceTargetPrice, "#.####"), 
          color=color.new(color.lime, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if bounceRecommendedStopLoss != 0
         stop_loss_price = bounceEntryPrice + bounceRecommendedStopLoss
         bounceCurrentStopLossLine := line.new(bounceProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.red, width=1, style=line.style_solid)
+             color=color.red, width=3, style=line.style_solid)
         bounceCurrentStopLossLabel := label.new(bounceProjectionStartBar + 10, stop_loss_price, text="BOUNCE SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
 if show_bounce_projection_lines and bounceProjectionDirection == "short" and bounceTargetPrice > 0 and not bounceProjectionCompleted and (short_bounce_detected and not short_pullback_alerted[1])
     bounceCurrentProjectionLine := line.new(bar_index, bounceTargetPrice, bar_index + 25, bounceTargetPrice, extend=extend.none, 
-         color=color.red, width=1, style=line.style_dashed)
+         color=color.red, width=3, style=line.style_dotted)
     bounceCurrentProjectionLabel := label.new(bar_index + 10, bounceTargetPrice, text="BOUNCE PT: " + str.tostring(bounceTargetPrice, "#.####"), 
          color=color.new(color.red, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
     
     if bounceRecommendedStopLoss != 0
         stop_loss_price = bounceEntryPrice + bounceRecommendedStopLoss
         bounceCurrentStopLossLine := line.new(bounceProjectionStartBar, stop_loss_price, bar_index + 25, stop_loss_price, extend=extend.none, 
-             color=color.lime, width=1, style=line.style_solid)
+             color=color.lime, width=3, style=line.style_solid)
         bounceCurrentStopLossLabel := label.new(bounceProjectionStartBar + 10, stop_loss_price, text="BOUNCE SL: " + str.tostring(stop_loss_price, "#.####"), 
              color=color.new(color.lime, 100), textcolor=color.white, style=label.style_label_left, size=size.normal)
 
@@ -1213,11 +1210,7 @@ if bounceProjectionTargetReached
 if bounceStopLossHit
     bounceStopLossEverHit := true
 
-plotshape(showBounceTargetReached, location=location.abovebar, color=color.new(color.lime, 100), style=shape.circle, size=size.tiny, 
-     title="Bounce Profit Target Reached", text="🎯", textcolor=color.black)
 
-plotshape(showBounceStopLossHit, location=location.belowbar, color=color.new(color.red, 100), style=shape.circle, size=size.small, 
-     title="Bounce Stop Loss Hit", text="💀", textcolor=color.white)
 
 // ================================== PULLBACK DETECTION VISUALS ======================================================
 // Visual indicators for pullback detection after pivot signals --------------------------------------------------------
@@ -1238,6 +1231,15 @@ plotshape(show_pullback_indicators and enable_pullback_detection and short_pullb
      location=location.abovebar, color=color.new(color.red, 100), style=shape.circle, size=size.small, 
      title="Short Pivot Pullback Bounce", text="🔴", textcolor=color.white)
 
+// Draw tiny vertical lines through bounce alerts
+if show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and close[1] <= long_pullback_low and ema3 > middleEMA
+    line.new(bar_index, low - (high - low) * 0.1, bar_index, high + (high - low) * 0.1, extend=extend.both, 
+         color=color.green, width=1, style=line.style_dotted)
+
+if show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and close[1] >= short_pullback_high and ema3 < middleEMA
+    line.new(bar_index, low - (high - low) * 0.1, bar_index, high + (high - low) * 0.1, extend=extend.both, 
+         color=color.red, width=1, style=line.style_dotted)
+
 // ================================== RSI & ADX MONITOR TABLE (OPTIMIZED) ==============================================
 
 // Only update table when signals change or every 10 bars for performance
@@ -1254,9 +1256,9 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
      border_width = 1)
 
     // Combined Alert Status and Style row - cached calculations
-    alert_activation_status = enable_alerts ? "Active ✅" : "Inactive ❌"
+    alert_activation_status = enable_alerts ? "✅" : "❌"
     style_color = trading_style == "Scalping" ? color.green: trading_style == "Day Trading" ? color.orange : trading_style == "Swing Trading" ? color.blue : color.gray
-    combined_alert_style = alert_activation_status + " | " + trading_style
+    combined_alert_style = alert_activation_status + " " + trading_style
     alert_color = enable_alerts ? color.teal : color.maroon
     blended_alert_style_color = color.rgb(
      math.round((color.r(alert_color) + color.r(style_color)) / 2),
@@ -1264,31 +1266,31 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
      math.round((color.b(alert_color) + color.b(style_color)) / 2)
      )
     alert_style_text_color = get_color_brightness(color.r(blended_alert_style_color), color.g(blended_alert_style_color), color.b(blended_alert_style_color)) > 128 ? color.black : color.white
-    table.cell(monitor_table, 0, 0, "Alerts & Style", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 0, 0, "Status", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 0, combined_alert_style, bgcolor=color.rgb(108, 107, 111), text_color=alert_style_text_color, text_size=size.normal)
 
     // Combined Indicators row - cached calculations
-    trend_direction = plus_di > minus_di ? "Bullish" : "Bearish"
+    trend_direction = plus_di > minus_di ? "Bull" : "Bear"
     trend_emoji = plus_di > minus_di ? "🟢" : "🔴"
-    rsi_display = str.tostring(math.round(rsi_value, 2))
+    rsi_display = str.tostring(math.round(rsi_value, 1))
     if rsi_value <= rsi_oversold
-        rsi_display := rsi_display + " 🟢"
+        rsi_display := rsi_display + "🟢"
     else if rsi_value >= rsi_overbought
-        rsi_display := rsi_display + " 🔴"
+        rsi_display := rsi_display + "🔴"
     else
-        rsi_display := rsi_display + " 🇨🇭"
-    adx_signal = adx_value >= adx_threshold ? "Strong" : "Weak"
+        rsi_display := rsi_display + "🇨🇭"
+    adx_signal = adx_value >= adx_threshold ? "S" : "W"
     adx_emoji = adx_value >= adx_threshold ? "💪" : "🥺"
     volume_ratio = volume / volume_ma
     volume_status = if volume_ratio <= 0.5
-        "Low 📉"
+        "L📉"
     else if volume_ratio <= 1.0
-        "Normal 📊"
+        "N📊"
     else if volume_ratio <= volume_threshold_multiplier
-        "Above Avg 📈"
+        "A📈"
     else
-        "High 🚀"
-    combined_indicators = trend_direction + " " + trend_emoji + " | ADX: " + adx_signal + " " + adx_emoji + " | RSI: " + rsi_display + " | Vol: " + volume_status
+        "H🚀"
+    combined_indicators = trend_direction + trend_emoji + " ADX:" + adx_signal + adx_emoji + " RSI:" + rsi_display + " Vol:" + volume_status
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     indicators_text_color = get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white
     table.cell(monitor_table, 0, 1, "Indicators", text_color=color.white, text_size=size.normal, bgcolor=color.black)
@@ -1297,46 +1299,37 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     // SMP Alerts row - cached setup calculation
     [setup_message, setup_color] = get_optimal_setup()
     
-    // Create SMP alert status with previous alert info
-    smp_alert_status = lastSMPAlertType == "None" ? "No SMP Alerts" : barsSinceLastSMPAlert == 0 ? lastSMPAlertType + " 🟡 LIVE" : lastSMPAlertType
-    
-    // Add success rate to SMP info (only if enabled)
-    smp_success_info = ""
-    if show_smp_success_rate
-        smp_success_rate = total_signals > 0 ? str.tostring(math.round(overall_success_ratio, 1)) + "%" : "N/A"
-        smp_success_info := " | Success: " + smp_success_rate + " (" + str.tostring(total_signals) + " signals)"
-    
-    // Combine current setup with alert status and success rate
-    smp_combined_info = setup_message + " | Last: " + smp_alert_status + smp_success_info
+    // Use just the setup message without additional data
+    smp_combined_info = setup_message
     
     // Determine text color based on background color for better readability
     smp_text_color = setup_color == color.lime or setup_color == color.green ? color.black : color.white
     
-    table.cell(monitor_table, 0, 2, "SMP Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 0, 2, "SMP", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 2, smp_combined_info, text_color=smp_text_color, bgcolor=setup_color, text_size=size.normal)
 
     // Pivot Alerts row - cached calculations
-    simplified_alert_status = lastAlertType == "None" ? "No Alerts" : barsSinceLastAlert == 0 ? lastAlertType + " 🟡 LIVE" : lastAlertType
+    simplified_alert_status = lastAlertType == "None" ? "None" : barsSinceLastAlert == 0 ? lastAlertType + "🟡" : lastAlertType
     
     // Add success rate to pivot info (only if enabled)
     pivot_success_info = ""
     if show_pivot_success_rate
         pivot_success_rate = pivot_total_signals > 0 ? str.tostring(math.round(pivot_success_ratio, 1)) + "%" : "N/A"
-        pivot_success_info := " | Success: " + pivot_success_rate + " (" + str.tostring(pivot_total_signals) + " signals)"
+        pivot_success_info := " " + pivot_success_rate + "(" + str.tostring(pivot_total_signals) + ")"
     
     // Set trend color based on alert type
-    trend_color = lastAlertType == "SYZ_PIVOT_LONG" ? color.teal : lastAlertType == "SYZ_PIVOT_SHORT" ? color.maroon : color.gray
+    trend_color = lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray
     
-    combined_pivot_trends = simplified_alert_status + " | Duration: " + str.tostring(barsSinceLastAlert) + " bars ago" + pivot_success_info
+    combined_pivot_trends = simplified_alert_status + " " + str.tostring(barsSinceLastAlert) + "b" + pivot_success_info
     
-    table.cell(monitor_table, 0, 3, "Pivot Alerts", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 0, 3, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 3, combined_pivot_trends, text_color=color.white, bgcolor=trend_color, text_size=size.normal)
 
     // Pullback Detection row - only show if enabled
     if enable_pullback_detection
         // Calculate pullback bounce status information
-        long_pullback_status = long_bounce_detected ? "LONG BOUNCE 📉" : long_pullback_detected ? "LONG PULLBACK" : "No Long Pullback"
-        short_pullback_status = short_bounce_detected ? "SHORT BOUNCE 📈" : short_pullback_detected ? "SHORT PULLBACK" : "No Short Pullback"
+        long_pullback_status = long_bounce_detected ? "L BOUNCE📉" : long_pullback_detected ? "L PULLBACK" : "None"
+        short_pullback_status = short_bounce_detected ? "S BOUNCE📈" : short_pullback_detected ? "S PULLBACK" : "None"
         
         // Calculate bars since pullback detection
         bars_since_long_pullback = long_pullback_detected ? bar_index - last_long_pullback_bar : 0
@@ -1345,21 +1338,21 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Create pullback display text
         pullback_display = ""
         if long_bounce_detected
-            pullback_display := long_pullback_status + " (" + str.tostring(bars_since_long_pullback) + " bars ago)"
+            pullback_display := long_pullback_status + " " + str.tostring(bars_since_long_pullback) + "b"
         else if short_bounce_detected
-            pullback_display := short_pullback_status + " (" + str.tostring(bars_since_short_pullback) + " bars ago)"
+            pullback_display := short_pullback_status + " " + str.tostring(bars_since_short_pullback) + "b"
         else if long_pullback_detected
-            pullback_display := long_pullback_status + " (" + str.tostring(bars_since_long_pullback) + " bars ago)"
+            pullback_display := long_pullback_status + " " + str.tostring(bars_since_long_pullback) + "b"
         else if short_pullback_detected
-            pullback_display := short_pullback_status + " (" + str.tostring(bars_since_short_pullback) + " bars ago)"
+            pullback_display := short_pullback_status + " " + str.tostring(bars_since_short_pullback) + "b"
         else
-            pullback_display := "No Pullbacks Detected"
+            pullback_display := "None"
         
         // Add success rate to pullback info (only if enabled)
         pullback_success_info = ""
         if show_pullback_success_rate
             pullback_success_rate = pullback_total_signals > 0 ? str.tostring(math.round(pullback_success_ratio, 1)) + "%" : "N/A"
-            pullback_success_info := " | Success: " + pullback_success_rate + " (" + str.tostring(pullback_total_signals) + " signals)"
+            pullback_success_info := " " + pullback_success_rate + "(" + str.tostring(pullback_total_signals) + ")"
         
         // Combine pullback status with success rate
         pullback_combined_info = pullback_display + pullback_success_info
@@ -1367,20 +1360,20 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Set pullback color based on detection status
         pullback_color = long_bounce_detected ? color.aqua : short_bounce_detected ? color.fuchsia : long_pullback_detected ? color.new(color.aqua, 50) : short_pullback_detected ? color.new(color.fuchsia, 50) : color.gray
         
-        table.cell(monitor_table, 0, 4, "Pullback Detection", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 0, 4, "Pullback", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 4, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
 
     // Market Structure row - cached calculations (only show if enabled)
     if show_market_structure
-        market_structure_text = market_structure == "TRENDING" ? "TRENDING" : market_structure == "RANGING" ? "RANGING" : "MIXED"
+        market_structure_text = market_structure == "TRENDING" ? "TREND" : market_structure == "RANGING" ? "RANGE" : "MIXED"
         structure_confidence_text = str.tostring(math.round(structure_confidence, 0)) + "%"
-        structure_change_info = bars_since_structure_change > 0 ? " | " + str.tostring(bars_since_structure_change) + " bars ago" : " | LIVE"
-        market_structure_display = market_structure_text + " | Confidence: " + structure_confidence_text + structure_change_info
+        structure_change_info = bars_since_structure_change > 0 ? " " + str.tostring(bars_since_structure_change) + "b" : " LIVE"
+        market_structure_display = market_structure_text + " " + structure_confidence_text + structure_change_info
         
         // Use dark text for yellow background (mixed market) for better readability
         structure_text_color = structure_color == color.yellow ? color.black : color.white
         
-        table.cell(monitor_table, 0, 5, "Market Structure", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 0, 5, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 5, market_structure_display, text_color=structure_text_color, text_size=size.normal, bgcolor=structure_color)
 
 // ========================================== ALERTS ===================================================================
@@ -1393,19 +1386,13 @@ alertcondition(shortSignalActive and enable_alerts, title="Syzygy Pivot Short", 
 // Alert condition for Syzygy Momentum Peak with enhanced descriptive message -----------------------------------------
 alertcondition(syzygy_momentum_peak_signal and enable_alerts and enable_smp_alerts, title="Syzygy Momentum Peak", message="SYZYGY_MOMENTUM_PEAK\nTicker: {{ticker}}\nPrice: {{close}}\nSignal: Momentum Peak (Long/Short, Strong/Weak)\nVolume: {{volume}}\nTime: {{time}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-// ================================== PULLBACK DETECTION ALERTS ========================================================
-// Alert conditions for pullback detection after pivot signals ---------------------------------------------------------
-alertcondition(long_pullback_detected and enable_pullback_detection and enable_alerts and enable_pullback_alerts, title="Long Pivot Pullback Detected", 
-     message="LONG_PIVOT_PULLBACK\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-alertcondition(short_pullback_detected and enable_pullback_detection and enable_alerts and enable_pullback_alerts, title="Short Pivot Pullback Detected", 
-     message="SHORT_PIVOT_PULLBACK\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================== BOUNCE DETECTION ALERTS ==========================================================
 // Alert conditions for bounce detection after pullback signals --------------------------------------------------------
-alertcondition(long_bounce_detected and enable_pullback_detection and enable_alerts and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
+alertcondition(show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and close[1] <= long_pullback_low and ema3 > middleEMA and enable_alerts and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
      message="LONG_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-alertcondition(short_bounce_detected and enable_pullback_detection and enable_alerts and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
+alertcondition(show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and close[1] >= short_pullback_high and ema3 < middleEMA and enable_alerts and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
      message="SHORT_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

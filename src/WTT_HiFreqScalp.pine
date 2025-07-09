@@ -2,7 +2,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v4.3 (Time window controls & UI improvements)
+// Revision: v4.4 (Debug row controls & code cleanup)
 //
 // =====================================================================================================================
 //
@@ -14,8 +14,8 @@
 //               and major performance optimizations (60-80% improvement)
 //   v4.0-v4.2 - Code simplification: Removed projection visuals, enhanced bounce detection with EMA invalidation logic,
 //               streamlined codebase for cleaner performance
-//   v4.3 - Time window controls & UI improvements: Added manual time window settings, timezone offset configuration,
-//           enhanced status row with intuitive emojis (✅❌💡🚫), removed unused code, and improved debugging capabilities
+//   v4.3 - UI improvements: Enhanced status row with intuitive emojis (✅❌), removed unused code, and improved debugging capabilities
+//   v4.4 - Debug controls: Added toggle for debug row display, removed time offset functionality, and simplified status row
 //
 // =====================================================================================================================
 //
@@ -69,28 +69,21 @@ table_position = input.string("bottom_right", title="Table Position", options=["
 show_smp_success_rate = input.bool(true, title="Show SMP Success Rate", group=GROUP_RSI_ADX, tooltip="Display success rate and signal count in SMP Alerts row")
 show_pivot_success_rate = input.bool(true, title="Show Pivot Success Rate", group=GROUP_RSI_ADX, tooltip="Display success rate and signal count in Pivot Alerts row")
 show_pullback_success_rate = input.bool(true, title="Show Pullback Success Rate", group=GROUP_RSI_ADX, tooltip="Display success rate and signal count in Pullback Detection row")
+show_debug_row = input.bool(false, title="Show Debug Row", group=GROUP_RSI_ADX, tooltip="Display debug information row in the table")
 
 // Reversal threshold multiplier for potential signal detection
 reversal_threshold = 0.85
 
-// ==================================== ALERT TIME SETTINGS ============================================================
-// Time-based alert windows (Central Time) -----------------------------------------------------------------------------
+// ==================================== ALERT SETTINGS ================================================================
+// Alert enablement settings -------------------------------------------------------------------------------------------
 enable_alerts = input.bool(true, title="Enable Alerts", group=GROUP_ALERT_TIME, tooltip="Toggle all alerts on or off")
-enable_time_windows = input.bool(true, title="Enable Time Windows", group=GROUP_ALERT_TIME, tooltip="Only allow alerts during specified time windows")
-
-// Timezone offset for time conversion (adjust based on your chart's timezone)
-timezone_offset = input.int(-1, title="Timezone Offset (hours)", minval=-12, maxval=12, group=GROUP_ALERT_TIME, tooltip="Hours to add to chart time to get Central Time. UTC=0, EST=-5, CST=-6, MST=-7, PST=-8")
-
-// Manual time window settings for testing and debugging
-morning_start_hour = input.int(7, title="Morning Start Hour", minval=0, maxval=23, group=GROUP_ALERT_TIME, tooltip="Start hour for morning alert window (0-23)")
-morning_end_hour = input.int(11, title="Morning End Hour", minval=0, maxval=23, group=GROUP_ALERT_TIME, tooltip="End hour for morning alert window (0-23)")
-
-evening_start_hour = input.int(19, title="Evening Start Hour", minval=0, maxval=23, group=GROUP_ALERT_TIME, tooltip="Start hour for evening alert window (0-23)")
-evening_end_hour = input.int(23, title="Evening End Hour", minval=0, maxval=23, group=GROUP_ALERT_TIME, tooltip="End hour for evening alert window (0-23)")
 
 // Individual alert type toggles
 enable_smp_alerts = input.bool(true, title="Enable SMP Alerts", group=GROUP_ALERT_TIME, tooltip="Enable Syzygy Momentum Peak alerts")
 enable_bounce_alerts = input.bool(true, title="Enable Bounce Alerts", group=GROUP_ALERT_TIME, tooltip="Enable Bounce projection alerts")
+
+// Alert enablement variable
+alerts_enabled = enable_alerts
 
 // ==================================== SIGNAL FILTER SETTINGS =========================================================
 // Signal spam prevention settings -------------------------------------------------------------------------------------
@@ -106,7 +99,7 @@ volume_threshold_multiplier = 1.5
 // ==================================== PULLBACK DETECTION SETTINGS ====================================================
 // Pullback detection parameters for pivot signals
 enable_pullback_detection = input.bool(true, title="Enable Pullback Detection", group=GROUP_ALERT_TIME, tooltip="Detect pullbacks after pivot signals for potential re-entry opportunities")
-pullback_percentage = input.float(0.02, title="Pullback Percentage", minval=0.01, maxval=10.0, step=0.01, group=GROUP_ALERT_TIME, tooltip="Percentage pullback required to trigger detection (0.01-10.0%)")
+pullback_percentage = input.float(0.01, title="Pullback Percentage", minval=0.01, maxval=10.0, step=0.01, group=GROUP_ALERT_TIME, tooltip="Percentage pullback required to trigger detection (0.01-10.0%)")
 pullback_lookback_bars = input.int(50, title="Pullback Lookback Bars", minval=5, maxval=100, group=GROUP_ALERT_TIME, tooltip="Maximum bars to look back for pullback detection after pivot signal")
 show_pullback_indicators = input.bool(true, title="Show Pullback Indicators", group=GROUP_DISPLAY, tooltip="Display visual indicators for pullback detection on chart")
 
@@ -159,6 +152,14 @@ var bool long_bounce_displayed = false
 var bool short_bounce_displayed = false
 var int last_long_bounce_bar = 0
 var int last_short_bounce_bar = 0
+
+// Synchronized bounce alert flag - matches alert conditions exactly
+var bool long_bounce_alert_ready = false
+var bool short_bounce_alert_ready = false
+
+// Debug variables for troubleshooting sync issues
+var string long_bounce_debug = ""
+var string short_bounce_debug = ""
 
 // ================================== EMA CROSSOVER TRACKING VARIABLES =================================================
 // Variables to track if EMA has crossed in opposite direction since pivot signal --------------------------------------
@@ -406,6 +407,14 @@ if enable_pullback_detection and short_pullback_detected and not short_bounce_de
         short_bounce_displayed := true
         last_short_bounce_bar := bar_index
 
+// Synchronized bounce alert flags - match alert conditions exactly
+long_bounce_alert_ready := show_pullback_indicators and enable_pullback_detection and long_bounce_displayed and long_pullback_low > 0 and close > long_pullback_low and ema3 > middleEMA and not long_pivot_invalidated and alerts_enabled and enable_bounce_alerts
+short_bounce_alert_ready := show_pullback_indicators and enable_pullback_detection and short_bounce_displayed and short_pullback_high > 0 and close < short_pullback_high and ema3 < middleEMA and not short_pivot_invalidated and alerts_enabled and enable_bounce_alerts
+
+// Debug information for troubleshooting
+long_bounce_debug := "Bounce:" + (long_bounce_detected ? "Y" : "N") + " Display:" + (long_bounce_displayed ? "Y" : "N") + " Alert:" + (long_bounce_alert_ready ? "Y" : "N") + " Low:" + str.tostring(long_pullback_low) + " Close:" + str.tostring(close) + " EMA:" + (ema3 > middleEMA ? "Y" : "N") + " Invalid:" + (long_pivot_invalidated ? "Y" : "N") + " Alerts:" + (alerts_enabled ? "Y" : "N") + " BounceAlerts:" + (enable_bounce_alerts ? "Y" : "N")
+short_bounce_debug := "Bounce:" + (short_bounce_detected ? "Y" : "N") + " Display:" + (short_bounce_displayed ? "Y" : "N") + " Alert:" + (short_bounce_alert_ready ? "Y" : "N") + " High:" + str.tostring(short_pullback_high) + " Close:" + str.tostring(close) + " EMA:" + (ema3 < middleEMA ? "Y" : "N") + " Invalid:" + (short_pivot_invalidated ? "Y" : "N") + " Alerts:" + (alerts_enabled ? "Y" : "N") + " BounceAlerts:" + (enable_bounce_alerts ? "Y" : "N")
+
 // Reset pullback detection after lookback period expires
 if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_lookback_bars
     long_pivot_peak_price := 0.0
@@ -636,34 +645,9 @@ else if shortSignalActive
     lastAlertType := "SHORT"
     lastAlertBarIndex := bar_index
 
-// ================================== TIME-BASED ALERT WINDOWS =========================================================
-// Check if current time is within allowed alert windows (Central Time) ------------------------------------------------
-// Convert chart time to Central Time using user-defined offset
-chart_hour = hour(time)
-chart_minute = minute(time)
-
-// Adjust for Central Time using user-defined timezone offset
-central_hour = chart_hour + timezone_offset
-if central_hour < 0
-    central_hour := central_hour + 24
-else if central_hour >= 24
-    central_hour := central_hour - 24
-
-current_time_minutes = central_hour * 60 + chart_minute
-
-// Define time windows in minutes (Central Time)
-morning_start = morning_start_hour * 60
-morning_end = morning_end_hour * 60
-evening_start = evening_start_hour * 60
-evening_end = evening_end_hour * 60
-
-// Check if current time is within allowed windows
-in_morning_window = current_time_minutes >= morning_start and current_time_minutes <= morning_end
-in_evening_window = current_time_minutes >= evening_start and current_time_minutes <= evening_end
-in_allowed_window = in_morning_window or in_evening_window
-
-// Final alert enablement based on time windows
-alerts_enabled = enable_alerts and (not enable_time_windows or in_allowed_window)
+// ================================== ALERT ENABLEMENT ================================================================
+// Simple alert enablement without time windows -----------------------------------------------------------------------
+// alerts_enabled is now declared earlier in the code
 
 // Calculate bars since last alert -------------------------------------------------------------------------------------
 barsSinceLastAlert = bar_index == lastAlertBarIndex ? 1 : bar_index - lastAlertBarIndex
@@ -753,12 +737,14 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 2, rows = 6, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 2, rows = 7, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Combined Alert Status and Style row
     table.cell(monitor_table, 0, 0, "Status", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    table.cell(monitor_table, 1, 0, (enable_alerts ? "✅" : "❌") + (enable_time_windows ? (in_allowed_window ? "💡" : "🚫") : "∞") + " " + trading_style + (enable_time_windows ? " " + str.tostring(central_hour) + ":" + str.tostring(chart_minute, "00") : ""), 
+    volume_filter_status = enable_volume_filter ? "✅" : "❌"
+    status_display = (enable_alerts ? "✅" : "❌") + " " + trading_style + " Vol:" + volume_filter_status
+    table.cell(monitor_table, 1, 0, status_display, 
          bgcolor=color.rgb(108, 107, 111), text_color=get_color_brightness(color.r(color.rgb(108, 107, 111)), color.g(color.rgb(108, 107, 111)), color.b(color.rgb(108, 107, 111))) > 128 ? color.black : color.white, text_size=size.normal)
 
     // Combined Indicators row
@@ -777,7 +763,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
 
     // Pivot Alerts row
     pivot_success_info = show_pivot_success_rate ? " " + (pivot_total_signals > 0 ? str.tostring(math.round(pivot_success_ratio, 1)) + "%" : "N/A") + "(" + str.tostring(pivot_total_signals) + ")" : ""
-    combined_pivot_trends = (lastAlertType == "None" ? "None" : barsSinceLastAlert == 0 ? lastAlertType + "🟡" : lastAlertType) + " " + str.tostring(barsSinceLastAlert) + "b" + pivot_success_info
+    combined_pivot_trends = (lastAlertType == "None" ? "None" : barsSinceLastAlert == 0 ? lastAlertType + "🟡" : lastAlertType) + " " + str.tostring(barsSinceLastAlert) + " bars" + pivot_success_info
     table.cell(monitor_table, 0, 3, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 3, combined_pivot_trends, text_color=color.white, bgcolor=lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray, text_size=size.normal)
 
@@ -786,13 +772,13 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Calculate pullback display text
         pullback_display = ""
         if long_bounce_detected
-            pullback_display := "L BOUNCE📉 " + str.tostring(bar_index - last_long_pullback_bar) + "b"
+            pullback_display := "L BOUNCE📉 " + str.tostring(bar_index - last_long_pullback_bar) + " bars"
         else if short_bounce_detected
-            pullback_display := "S BOUNCE📈 " + str.tostring(bar_index - last_short_pullback_bar) + "b"
+            pullback_display := "S BOUNCE📈 " + str.tostring(bar_index - last_short_pullback_bar) + " bars"
         else if long_pullback_detected
-            pullback_display := "L PULLBACK " + str.tostring(bar_index - last_long_pullback_bar) + "b"
+            pullback_display := "L PULLBACK " + str.tostring(bar_index - last_long_pullback_bar) + " bars"
         else if short_pullback_detected
-            pullback_display := "S PULLBACK " + str.tostring(bar_index - last_short_pullback_bar) + "b"
+            pullback_display := "S PULLBACK " + str.tostring(bar_index - last_short_pullback_bar) + " bars"
         else
             pullback_display := "None"
         
@@ -805,12 +791,18 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         
         table.cell(monitor_table, 0, 4, "Pullback", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 4, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
+        
+        // Debug row for bounce synchronization (temporary)
+        if show_debug_row and (long_bounce_detected or short_bounce_detected)
+            debug_info = long_bounce_detected ? long_bounce_debug : short_bounce_debug
+            table.cell(monitor_table, 0, 5, "Debug", text_color=color.white, text_size=size.small, bgcolor=color.black)
+            table.cell(monitor_table, 1, 5, debug_info, text_color=color.yellow, bgcolor=color.black, text_size=size.small)
 
     // Market Structure row - only show if enabled
     if show_market_structure
-        market_structure_display = (market_structure == "TRENDING" ? "TREND" : market_structure == "RANGING" ? "RANGE" : "MIXED") + " " + str.tostring(math.round(math.min(100, trend_score * 100), 0)) + "%" + (bar_index - structure_change_bar > 0 ? " " + str.tostring(bar_index - structure_change_bar) + "b" : " LIVE")
-        table.cell(monitor_table, 0, 5, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-        table.cell(monitor_table, 1, 5, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
+        market_structure_display = (market_structure == "TRENDING" ? "TREND" : market_structure == "RANGING" ? "RANGE" : "MIXED") + " " + str.tostring(math.round(math.min(100, trend_score * 100), 0)) + "%" + (bar_index - structure_change_bar > 0 ? " " + str.tostring(bar_index - structure_change_bar) + " bars" : " LIVE")
+        table.cell(monitor_table, 0, 6, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 1, 6, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
 
 // ========================================== SYZYGY PIVOT ALERTS ======================================================
 
@@ -824,9 +816,9 @@ alertcondition(syzygy_momentum_peak_signal and alerts_enabled and enable_smp_ale
 
 // ================================== BOUNCE DETECTION ALERTS ==========================================================
 // Alert conditions for bounce detection after pullback signals --------------------------------------------------------
-alertcondition(show_pullback_indicators and enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and close > long_pullback_low and ema3 > middleEMA and alerts_enabled and enable_bounce_alerts, title="Long Pivot Bounce Detected", 
+alertcondition(long_bounce_alert_ready, title="Long Pivot Bounce Detected", 
      message="LONG_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
-alertcondition(show_pullback_indicators and enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and close < short_pullback_high and ema3 < middleEMA and alerts_enabled and enable_bounce_alerts, title="Short Pivot Bounce Detected", 
+alertcondition(short_bounce_alert_ready, title="Short Pivot Bounce Detected", 
      message="SHORT_PIVOT_BOUNCE\nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 

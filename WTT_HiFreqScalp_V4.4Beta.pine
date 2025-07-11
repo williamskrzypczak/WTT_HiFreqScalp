@@ -2,7 +2,7 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v4.4Beta (Performance toggle consolidation)
+// Revision: v4.4Beta (Signal ranking system and UI enhancements)
 //
 // =====================================================================================================================
 //
@@ -35,6 +35,15 @@
 //   v4.4Beta - Changed bounce terminology from L/S to BUY/SELL for clearer user action indication
 //   v4.4Beta - Simplified SMP messages to use "TRADE WITH TREND" instead of specific buy/sell directions
 //   v4.4Beta - Added "LAST:" prefix to bounce signals to clarify they show the most recent signal
+//   v4.4Beta - Added signal ranking system with color-coded numbers (1, 2, 3) for SMP, Pivot, and Bounce signals
+//   v4.4Beta - Enhanced ranking display with larger font size for top-ranked signals (#1) for better visibility
+//   v4.4Beta - Expanded table to three columns with dedicated ranking column for improved signal comparison
+//   v4.4Beta - Implemented color-coded ranking: Yellow for 1st place, Gray for 2nd place, Orange for 3rd place
+//   v4.4Beta - Added abbreviated text descriptions to save table space while maintaining clarity
+//   v4.4Beta - Abbreviated "TRADE WITH TREND (STRONG SIGNAL)" to "WITH TREND (STRONG)" for better readability
+//   v4.4Beta - Abbreviated "FOLLOW MARKET/GO AGAINST MARKET" to "FOLLOW/AGAINST" for cleaner display
+//   v4.4Beta - Optimized ranking logic to only display rankings when sufficient signal data is available (3+ signals)
+//   v4.4Beta - Enhanced user experience with visual hierarchy in signal performance comparison
 //
 // =====================================================================================================================
 //

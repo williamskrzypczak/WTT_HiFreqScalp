@@ -201,10 +201,6 @@ var int long_pivot_peak_bar = 0
 var int short_pivot_trough_bar = 0
 var bool long_pullback_detected = false
 var bool short_pullback_detected = false
-var bool long_pullback_alerted = false
-var bool short_pullback_alerted = false
-var int last_long_pullback_bar = 0
-var int last_short_pullback_bar = 0
 var float long_pullback_low = 0.0
 var float short_pullback_high = 0.0
 var bool long_bounce_detected = false
@@ -235,12 +231,7 @@ var bool short_pivot_invalidated = false
 
 // ================================== PULLBACK SUCCESS TRACKING VARIABLES ==============================================
 // Variables to track success rate of pullback-based trades ------------------------------------------------------------
-var array<int> longPullbackBars = array.new<int>()
-var array<int> shortPullbackBars = array.new<int>()
-var array<bool> longPullbackResults = array.new<bool>()
-var array<bool> shortPullbackResults = array.new<bool>()
-var float pullback_success_ratio = 0.0
-var int pullback_total_signals = 0
+// NOTE: Pullback success tracking removed - not displayed in table
 
 // === Bounce Performance Tracking Arrays ===
 var array<int> longBounceBars = array.new<int>()
@@ -420,14 +411,12 @@ if longSignalActive
     long_pivot_peak_price := close
     long_pivot_peak_bar := bar_index
     long_pullback_detected := false
-    long_pullback_alerted := false
     long_pivot_invalidated := false
 
 if shortSignalActive
     short_pivot_trough_price := close
     short_pivot_trough_bar := bar_index
     short_pullback_detected := false
-    short_pullback_alerted := false
     short_pivot_invalidated := false
 
 // ================================== EMA CROSSOVER INVALIDATION LOGIC =================================================
@@ -454,7 +443,6 @@ if enable_pullback_detection and long_pivot_peak_price > 0 and not long_pullback
     pullback_distance = ((long_pivot_peak_price - close) / long_pivot_peak_price) * 100
     if pullback_distance >= pullback_percentage
         long_pullback_detected := true
-        last_long_pullback_bar := bar_index
         long_pullback_low := close
 
 // Detect pullbacks and bounces for short pivot signals
@@ -462,21 +450,18 @@ if enable_pullback_detection and short_pivot_trough_price > 0 and not short_pull
     pullback_distance = ((close - short_pivot_trough_price) / short_pivot_trough_price) * 100
     if pullback_distance >= pullback_percentage
         short_pullback_detected := true
-        last_short_pullback_bar := bar_index
         short_pullback_high := close
 
 // Detect bounces after pullbacks (only first time)
 if enable_pullback_detection and long_pullback_detected and not long_bounce_detected and long_pullback_low > 0 and not long_pivot_invalidated
     if close > long_pullback_low and ema3 > middleEMA
         long_bounce_detected := true
-        long_pullback_alerted := true
         long_bounce_displayed := true
         last_long_bounce_bar := bar_index
 
 if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0 and not short_pivot_invalidated
     if close < short_pullback_high and ema3 < middleEMA
         short_bounce_detected := true
-        short_pullback_alerted := true
         short_bounce_displayed := true
         last_short_bounce_bar := bar_index
 
@@ -507,7 +492,6 @@ short_bounce_debug := "Bounce:" + (short_bounce_detected ? "Y" : "N") + " Displa
 if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_lookback_bars
     long_pivot_peak_price := 0.0
     long_pullback_detected := false
-    long_pullback_alerted := false
     long_bounce_detected := false
     long_pullback_low := 0.0
     long_pivot_invalidated := false
@@ -516,7 +500,6 @@ if long_pivot_peak_price > 0 and bar_index > long_pivot_peak_bar + pullback_look
 if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullback_lookback_bars
     short_pivot_trough_price := 0.0
     short_pullback_detected := false
-    short_pullback_alerted := false
     short_bounce_detected := false
     short_pullback_high := 0.0
     short_pivot_invalidated := false
@@ -531,60 +514,7 @@ if short_bounce_displayed and bar_index > last_short_bounce_bar + 1
 
 // ================================== PULLBACK SUCCESS TRACKING LOGIC (OPTIMIZED) ======================================
 // Track pullback signals and evaluate their success -------------------------------------------------------------------
-
-// Track new pullback signals with optimized array management
-if long_pullback_detected and not long_pullback_alerted
-    array.unshift(longPullbackBars, bar_index)
-    if array.size(longPullbackBars) > MAX_SIGNALS
-        array.pop(longPullbackBars)
-    if array.size(longPullbackResults) > 0
-        array.pop(longPullbackResults)
-
-if short_pullback_detected and not short_pullback_alerted
-    array.unshift(shortPullbackBars, bar_index)
-    if array.size(shortPullbackBars) > MAX_SIGNALS
-        array.pop(shortPullbackBars)
-    if array.size(shortPullbackResults) > 0
-        array.pop(shortPullbackResults)
-
-// Only evaluate results every 5 bars for performance
-if bar_index % 5 == 0 and bar_index >= success_lookback_bars
-    // Evaluate long pullback results - only check the oldest unevaluated signal
-    if array.size(longPullbackBars) > 0 and array.size(longPullbackBars) > array.size(longPullbackResults)
-        if (bar_index - array.get(longPullbackBars, array.size(longPullbackResults))) >= success_lookback_bars
-            price_change_pct = ((close - close[success_lookback_bars]) / close[success_lookback_bars]) * 100
-            pip_value = close * 0.0001
-            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
-            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
-            
-            result = price_change_pct >= profit_target_pct ? true : (price_change_pct <= -stop_loss_pct ? false : na)
-            if not na(result)
-                array.push(longPullbackResults, result)
-
-    // Evaluate short pullback results - only check the oldest unevaluated signal
-    if array.size(shortPullbackBars) > 0 and array.size(shortPullbackBars) > array.size(shortPullbackResults)
-        if (bar_index - array.get(shortPullbackBars, array.size(shortPullbackResults))) >= success_lookback_bars
-            price_change_pct = ((close[success_lookback_bars] - close) / close[success_lookback_bars]) * 100
-            pip_value = close * 0.0001
-            profit_target_pct = (5.0 * pip_value / close) * 100  // 5 pips
-            stop_loss_pct = (7.0 * pip_value / close) * 100      // 7 pips
-            
-            result = price_change_pct >= profit_target_pct ? true : (price_change_pct <= -stop_loss_pct ? false : na)
-            if not na(result)
-                array.push(shortPullbackResults, result)
-
-// Calculate pullback success ratios - only when needed for display
-pullback_total_signals := array.size(longPullbackResults) + array.size(shortPullbackResults)
-pullback_total_successes = 0
-if array.size(longPullbackResults) > 0
-    for i = 0 to math.min(array.size(longPullbackResults) - 1, 19)
-        if array.get(longPullbackResults, i)
-            pullback_total_successes := pullback_total_successes + 1
-if array.size(shortPullbackResults) > 0
-    for i = 0 to math.min(array.size(shortPullbackResults) - 1, 19)
-        if array.get(shortPullbackResults, i)
-            pullback_total_successes := pullback_total_successes + 1
-pullback_success_ratio := pullback_total_signals > 0 ? (pullback_total_successes / pullback_total_signals) * 100 : 0.0
+// NOTE: Pullback success tracking logic removed - not displayed in table
 
 // ================================== SMP CONDITIONS AND PROJECTIONS ===================================================
 // Overbought/Oversold conditions --------------------------------------------------------------------------------------
@@ -1017,18 +947,16 @@ plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371
 // ================================== MIXED MARKET STRUCTURE INDICATOR =================================================
 // Visual indicator for mixed market structure on current bar only -----------------------------------------------------
 if market_structure == "MIXED" and barstate.islast
-    line.new(bar_index, high + (high - low) * 0.1, bar_index, high + (high - low) * 0.3, 
+    // Use fixed length for consistent yellow vertical line appearance
+    fixed_line_length = (high - low) * 0.25  // Fixed at 25% of candle range for consistency
+    line.new(bar_index, high + fixed_line_length * 0.1, bar_index, high + fixed_line_length * 0.35, 
          color=color.yellow, width=3, style=line.style_solid)
 
 // ================================== PULLBACK DETECTION VISUALS =======================================================
 // Visual indicators for pullback detection after pivot signals --------------------------------------------------------
 
 // Set alert flags to prevent multiple plots
-if long_pullback_detected and not long_pullback_alerted
-    long_pullback_alerted := true
-
-if short_pullback_detected and not short_pullback_alerted
-    short_pullback_alerted := true
+// NOTE: Removed redundant pullback alert flags - using bounce logic instead
 
 // Plot pullback bounce indicators (only most current) - synchronized with alert conditions
 plotshape(long_bounce_alert_ready, 
@@ -1061,7 +989,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 2, rows = 10, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 3, rows = 10, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Combined Alert Status and Style row
@@ -1070,6 +998,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     status_display = (enable_alerts ? "✅" : "❌") + " " + trading_style + " Vol:" + volume_filter_status
     table.cell(monitor_table, 1, 0, status_display, 
          bgcolor=color.rgb(108, 107, 111), text_color=get_color_brightness(color.r(color.rgb(108, 107, 111)), color.g(color.rgb(108, 107, 111)), color.b(color.rgb(108, 107, 111))) > 128 ? color.black : color.white, text_size=size.normal)
+    table.cell(monitor_table, 2, 0, "Rank", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Combined Indicators row
     rsi_display = str.tostring(math.round(rsi_value, 1)) + (rsi_value <= rsi_oversold ? "🟢" : rsi_value >= rsi_overbought ? "🔴" : "🇨🇭")
@@ -1079,6 +1008,102 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
     table.cell(monitor_table, 0, 1, "Indicators", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 1, combined_indicators, bgcolor=rsi_gradient_color, text_color=get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white, text_size=size.normal)
+    table.cell(monitor_table, 2, 1, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+
+    // Calculate signal rankings for the new column
+    smp_success_rate = total_signals > 0 ? overall_success_ratio : 0
+    pivot_success_rate = pivot_total_signals > 0 ? pivot_success_ratio : 0
+    bounce_success_rate = bounce_total_signals > 0 ? bounce_success_ratio : 0
+    
+    // Determine ranking for each signal type
+    smp_rank = ""
+    pivot_rank = ""
+    bounce_rank = ""
+    smp_rank_color = color.white
+    pivot_rank_color = color.white
+    bounce_rank_color = color.white
+    
+    // Only rank signals with sufficient data (at least 3 signals)
+    if total_signals >= 3 and pivot_total_signals >= 3 and bounce_total_signals >= 3
+        // All three signals have data - rank them
+        if smp_success_rate >= pivot_success_rate and smp_success_rate >= bounce_success_rate
+            smp_rank := "1"
+            smp_rank_color := color.yellow
+        else if smp_success_rate >= pivot_success_rate or smp_success_rate >= bounce_success_rate
+            smp_rank := "2"
+            smp_rank_color := color.gray
+        else
+            smp_rank := "3"
+            smp_rank_color := color.orange
+            
+        if pivot_success_rate >= smp_success_rate and pivot_success_rate >= bounce_success_rate
+            pivot_rank := "1"
+            pivot_rank_color := color.yellow
+        else if pivot_success_rate >= smp_success_rate or pivot_success_rate >= bounce_success_rate
+            pivot_rank := "2"
+            pivot_rank_color := color.gray
+        else
+            pivot_rank := "3"
+            pivot_rank_color := color.orange
+            
+        if bounce_success_rate >= smp_success_rate and bounce_success_rate >= pivot_success_rate
+            bounce_rank := "1"
+            bounce_rank_color := color.yellow
+        else if bounce_success_rate >= smp_success_rate or bounce_success_rate >= pivot_success_rate
+            bounce_rank := "2"
+            bounce_rank_color := color.gray
+        else
+            bounce_rank := "3"
+            bounce_rank_color := color.orange
+    else if total_signals >= 3 and pivot_total_signals >= 3
+        // Only SMP and Pivot have data
+        if smp_success_rate >= pivot_success_rate
+            smp_rank := "1"
+            smp_rank_color := color.yellow
+            pivot_rank := "2"
+            pivot_rank_color := color.gray
+        else
+            smp_rank := "2"
+            smp_rank_color := color.gray
+            pivot_rank := "1"
+            pivot_rank_color := color.yellow
+    else if total_signals >= 3 and bounce_total_signals >= 3
+        // Only SMP and Bounce have data
+        if smp_success_rate >= bounce_success_rate
+            smp_rank := "1"
+            smp_rank_color := color.yellow
+            bounce_rank := "2"
+            bounce_rank_color := color.gray
+        else
+            smp_rank := "2"
+            smp_rank_color := color.gray
+            bounce_rank := "1"
+            bounce_rank_color := color.yellow
+    else if pivot_total_signals >= 3 and bounce_total_signals >= 3
+        // Only Pivot and Bounce have data
+        if pivot_success_rate >= bounce_success_rate
+            pivot_rank := "1"
+            pivot_rank_color := color.yellow
+            bounce_rank := "2"
+            bounce_rank_color := color.gray
+        else
+            pivot_rank := "2"
+            pivot_rank_color := color.gray
+            bounce_rank := "1"
+            bounce_rank_color := color.yellow
+    else if total_signals >= 3
+        smp_rank := "1"
+        smp_rank_color := color.yellow
+    else if pivot_total_signals >= 3
+        pivot_rank := "1"
+        pivot_rank_color := color.yellow
+    else if bounce_total_signals >= 3
+        bounce_rank := "1"
+        bounce_rank_color := color.yellow
+    else
+        smp_rank := "-"
+        pivot_rank := "-"
+        bounce_rank := "-"
 
     // SMP Alerts row
     [setup_message, setup_color] = get_optimal_setup()
@@ -1099,31 +1124,31 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Determine suggestion based on relative performance and minimum viable thresholds
         if trend_performance > countertrend_performance
             if trend_performance >= 40
-                trade_suggestion := "→ TRADE WITH TREND (STRONG SIGNAL)"
+                trade_suggestion := "→ WITH TREND (STRONG)"
             else if trend_performance >= 25
-                trade_suggestion := "→ TRADE WITH TREND (MODERATE SIGNAL)"
+                trade_suggestion := "→ WITH TREND (MOD)"
             else
-                trade_suggestion := "→ TRADE WITH TREND (WEAK SIGNAL)"
+                trade_suggestion := "→ WITH TREND (WEAK)"
         else if countertrend_performance > trend_performance
             if countertrend_performance >= 40
-                trade_suggestion := "→ TRADE AGAINST TREND (STRONG SIGNAL)"
+                trade_suggestion := "→ AGAINST TREND (STRONG)"
             else if countertrend_performance >= 25
-                trade_suggestion := "→ TRADE AGAINST TREND (MODERATE SIGNAL)"
+                trade_suggestion := "→ AGAINST TREND (MOD)"
             else
-                trade_suggestion := "→ TRADE AGAINST TREND (WEAK SIGNAL)"
+                trade_suggestion := "→ AGAINST TREND (WEAK)"
         else if trend_performance == countertrend_performance and trend_performance > 0
             if trend_performance >= 35
-                trade_suggestion := "→ BOTH DIRECTIONS WORK (STRONG)"
+                trade_suggestion := "→ BOTH WORK (STRONG)"
             else
-                trade_suggestion := "→ NO CLEAR DIRECTION (NEUTRAL)"
+                trade_suggestion := "→ NO CLEAR DIRECTION"
         else
             // No clear winner, suggest based on which has more data
             if trend_total_count > countertrend_total_count
-                trade_suggestion := "→ TRADE WITH TREND (WEAK SIGNAL)"
+                trade_suggestion := "→ WITH TREND (WEAK)"
             else if countertrend_total_count > trend_total_count
-                trade_suggestion := "→ TRADE AGAINST TREND (WEAK SIGNAL)"
+                trade_suggestion := "→ AGAINST TREND (WEAK)"
             else
-                trade_suggestion := "→ NO CLEAR DIRECTION (NEUTRAL)"
+                trade_suggestion := "→ NO CLEAR DIRECTION"
     else
         trade_suggestion := "→ WAIT FOR MORE DATA"
 
@@ -1132,12 +1157,14 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
 
     table.cell(monitor_table, 0, 2, "SMP", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 2, setup_message + "\n" + trade_suggestion, text_color=setup_color == color.lime or setup_color == color.green ? color.black : color.white, bgcolor=setup_color, text_size=size.normal)
+    table.cell(monitor_table, 2, 2, smp_rank, text_color=smp_rank_color, text_size=smp_rank == "1" ? size.large : size.normal, bgcolor=color.black)
 
     // SMP Performance row - only show if enabled
     if show_performance_data
         trend_performance_display = trend_stats + " | " + countertrend_stats
         table.cell(monitor_table, 0, 3, "SMP Perf", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 3, trend_performance_display, text_color=color.white, bgcolor=color.blue, text_size=size.normal)
+        table.cell(monitor_table, 2, 3, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Pivot Alerts row
     // Calculate pivot trade direction suggestion
@@ -1153,37 +1180,38 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Determine suggestion based on relative performance and minimum viable thresholds
         if pivot_trend_performance > pivot_countertrend_performance
             if pivot_trend_performance >= 40
-                pivot_trade_suggestion := "→ FOLLOW MARKET (STRONG SIGNAL)"
+                pivot_trade_suggestion := "→ FOLLOW (STRONG)"
             else if pivot_trend_performance >= 25
-                pivot_trade_suggestion := "→ FOLLOW MARKET (MODERATE SIGNAL)"
+                pivot_trade_suggestion := "→ FOLLOW (MOD)"
             else
-                pivot_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                pivot_trade_suggestion := "→ FOLLOW (WEAK)"
         else if pivot_countertrend_performance > pivot_trend_performance
             if pivot_countertrend_performance >= 40
-                pivot_trade_suggestion := "→ GO AGAINST MARKET (STRONG SIGNAL)"
+                pivot_trade_suggestion := "→ AGAINST (STRONG)"
             else if pivot_countertrend_performance >= 25
-                pivot_trade_suggestion := "→ GO AGAINST MARKET (MODERATE SIGNAL)"
+                pivot_trade_suggestion := "→ AGAINST (MOD)"
             else
-                pivot_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                pivot_trade_suggestion := "→ AGAINST (WEAK)"
         else if pivot_trend_performance == pivot_countertrend_performance and pivot_trend_performance > 0
             if pivot_trend_performance >= 35
-                pivot_trade_suggestion := "→ BOTH STRATEGIES WORK (STRONG)"
+                pivot_trade_suggestion := "→ BOTH WORK (STRONG)"
             else
-                pivot_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                pivot_trade_suggestion := "→ NO CLEAR STRATEGY"
         else
             // No clear winner, suggest based on which has more data
             if pivot_trend_total_count > pivot_countertrend_total_count
-                pivot_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                pivot_trade_suggestion := "→ FOLLOW (WEAK)"
             else if pivot_countertrend_total_count > pivot_trend_total_count
-                pivot_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                pivot_trade_suggestion := "→ AGAINST (WEAK)"
             else
-                pivot_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                pivot_trade_suggestion := "→ NO CLEAR STRATEGY"
     else
         pivot_trade_suggestion := "→ WAIT FOR MORE DATA"
 
     combined_pivot_trends = (lastAlertType == "None" ? "None" : barsSinceLastAlert == 0 ? lastAlertType + "🟡" : lastAlertType) + "\n" + pivot_trade_suggestion
     table.cell(monitor_table, 0, 4, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 1, 4, combined_pivot_trends, text_color=color.white, bgcolor=lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray, text_size=size.normal)
+    table.cell(monitor_table, 2, 4, pivot_rank, text_color=pivot_rank_color, text_size=pivot_rank == "1" ? size.large : size.normal, bgcolor=color.black)
 
     // Pivot Performance row - only show if enabled
     if show_performance_data
@@ -1237,6 +1265,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         
         table.cell(monitor_table, 0, 5, "Pivot Perf", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 5, pivot_performance_display, text_color=color.white, bgcolor=color.teal, text_size=size.normal)
+        table.cell(monitor_table, 2, 5, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Pullback Detection row - only show if enabled
     if enable_pullback_detection
@@ -1266,31 +1295,31 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             // Determine suggestion based on relative performance and minimum viable thresholds
             if bounce_trend_performance > bounce_countertrend_performance
                 if bounce_trend_performance >= 40
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (STRONG SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (STRONG)"
                 else if bounce_trend_performance >= 25
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (MODERATE SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (MOD)"
                 else
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (WEAK)"
             else if bounce_countertrend_performance > bounce_trend_performance
                 if bounce_countertrend_performance >= 40
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (STRONG SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (STRONG)"
                 else if bounce_countertrend_performance >= 25
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (MODERATE SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (MOD)"
                 else
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (WEAK)"
             else if bounce_trend_performance == bounce_countertrend_performance and bounce_trend_performance > 0
                 if bounce_trend_performance >= 35
-                    bounce_trade_suggestion := "→ BOTH STRATEGIES WORK (STRONG)"
+                    bounce_trade_suggestion := "→ BOTH WORK (STRONG)"
                 else
-                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY"
             else
                 // No clear winner, suggest based on which has more data
                 if bounce_trend_total_count > bounce_countertrend_total_count
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (WEAK)"
                 else if bounce_countertrend_total_count > bounce_trend_total_count
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (WEAK)"
                 else
-                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY"
         else
             bounce_trade_suggestion := "→ WAIT FOR MORE DATA"
         
@@ -1301,6 +1330,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         
         table.cell(monitor_table, 0, 6, "Pivot Bounce", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 6, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
+        table.cell(monitor_table, 2, 6, bounce_rank, text_color=bounce_rank_color, text_size=bounce_rank == "1" ? size.large : size.normal, bgcolor=color.black)
 
     // Bounce Performance row - only show if enabled
     if show_performance_data and enable_pullback_detection
@@ -1320,31 +1350,31 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             // Determine suggestion based on relative performance and minimum viable thresholds
             if bounce_trend_performance > bounce_countertrend_performance
                 if bounce_trend_performance >= 40
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (STRONG SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (STRONG)"
                 else if bounce_trend_performance >= 25
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (MODERATE SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (MOD)"
                 else
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (WEAK)"
             else if bounce_countertrend_performance > bounce_trend_performance
                 if bounce_countertrend_performance >= 40
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (STRONG SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (STRONG)"
                 else if bounce_countertrend_performance >= 25
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (MODERATE SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (MOD)"
                 else
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (WEAK)"
             else if bounce_trend_performance == bounce_countertrend_performance and bounce_trend_performance > 0
                 if bounce_trend_performance >= 35
-                    bounce_trade_suggestion := "→ BOTH STRATEGIES WORK (STRONG)"
+                    bounce_trade_suggestion := "→ BOTH WORK (STRONG)"
                 else
-                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY"
             else
                 // No clear winner, suggest based on which has more data
                 if bounce_trend_total_count > bounce_countertrend_total_count
-                    bounce_trade_suggestion := "→ FOLLOW MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ FOLLOW (WEAK)"
                 else if bounce_countertrend_total_count > bounce_trend_total_count
-                    bounce_trade_suggestion := "→ GO AGAINST MARKET (WEAK SIGNAL)"
+                    bounce_trade_suggestion := "→ AGAINST (WEAK)"
                 else
-                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY (NEUTRAL)"
+                    bounce_trade_suggestion := "→ NO CLEAR STRATEGY"
         else
             bounce_trade_suggestion := "→ WAIT FOR MORE DATA"
         
@@ -1354,12 +1384,17 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         
         table.cell(monitor_table, 0, 7, "Bounce Perf", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 7, bounce_performance_display, text_color=color.white, bgcolor=color.fuchsia, text_size=size.normal)
+        table.cell(monitor_table, 2, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Debug row for bounce synchronization (temporary) - independent of performance toggles
     if show_debug_row and (long_bounce_detected or short_bounce_detected)
         debug_info = long_bounce_detected ? long_bounce_debug : short_bounce_debug
         table.cell(monitor_table, 0, 8, "Debug", text_color=color.white, text_size=size.small, bgcolor=color.black)
         table.cell(monitor_table, 1, 8, debug_info, text_color=color.yellow, bgcolor=color.black, text_size=size.small)
+        table.cell(monitor_table, 2, 8, "", text_color=color.white, text_size=size.small, bgcolor=color.black)
+
+    // Signal Ranking row - shows which signal type is performing best
+    // NOTE: Ranking now integrated into column 2 of each signal row
 
     // Market Structure row - only show if enabled
     if show_market_structure
@@ -1383,6 +1418,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         market_structure_display = (market_structure == "TRENDING" ? "TREND" : market_structure == "RANGING" ? "RANGE" : "MIXED") + " " + trend_direction
         table.cell(monitor_table, 0, 9, "Current Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 9, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
+        table.cell(monitor_table, 2, 9, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
 // ========================================== SYZYGY PIVOT ALERTS ======================================================
 

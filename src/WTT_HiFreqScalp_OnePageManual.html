@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WTT HiFreqScalp Trading Signals v3.4</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #222;
+      margin: 0;
+      padding: 0;
+      font-size: 12px;
+      line-height: 1.2;
+    }
+    .container {
+      max-width: 800px;
+      margin: 10px auto;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      padding: 15px;
+    }
+    h1, h2, h3 {
+      color: #2a3a5e;
+      margin-top: 0;
+      margin-bottom: 4px;
+    }
+    h1 {
+      font-size: 1.4em;
+      margin-bottom: 6px;
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    h2 {
+      font-size: 1.0em;
+      margin-top: 8px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 2px;
+      color: #4a5568;
+    }
+    p {
+      margin: 3px 0;
+    }
+    ul, ol {
+      margin: 2px 0 4px 0;
+      padding-left: 15px;
+    }
+    li {
+      margin: 1px 0;
+    }
+    .quickref {
+      background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+      border-left: 3px solid #2196f3;
+      padding: 4px 8px;
+      margin: 4px 0;
+      font-size: 0.85em;
+      border-radius: 4px;
+    }
+    .signal-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 3px 0;
+      font-size: 0.8em;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .signal-table th, .signal-table td {
+      border: 1px solid #d0d6e0;
+      padding: 2px 4px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .signal-table th {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    .signal-table td.signal {
+      font-weight: bold;
+      color: #2a3a5e;
+    }
+    .signal-table tr:nth-child(even) {
+      background-color: #f8f9fa;
+    }
+    .tip {
+      background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+      border-left: 3px solid #ff9800;
+      padding: 3px 6px;
+      margin: 3px 0;
+      font-size: 0.8em;
+      border-radius: 4px;
+    }
+    .ai-highlight {
+      background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+      border-left: 3px solid #4caf50;
+      padding: 3px 6px;
+      margin: 3px 0;
+      font-size: 0.8em;
+      border-radius: 4px;
+    }
+    .new-feature {
+      background: linear-gradient(135deg, #fce4ec, #f8bbd9);
+      border-left: 3px solid #e91e63;
+      padding: 3px 6px;
+      margin: 3px 0;
+      font-size: 0.8em;
+      border-radius: 4px;
+    }
+    .emoji {
+      font-size: 1.1em;
+    }
+    .color-long { color: #43b593; font-weight: bold; }
+    .color-short { color: #8B5CF6; font-weight: bold; }
+    .color-ai { color: #9c27b0; font-weight: bold; }
+    .color-success { color: #4caf50; font-weight: bold; }
+    .color-warning { color: #ff9800; font-weight: bold; }
+    footer {
+      text-align: center;
+      font-size: 0.75em;
+      color: #888;
+      margin-top: 6px;
+      padding-top: 4px;
+      border-top: 2px solid #667eea;
+    }
+    @media (max-width: 600px) {
+      .container { padding: 8px; }
+      h1 { font-size: 1.2em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 WTT HiFreqScalp Trading Signals v3.4</h1>
+    <p><b>WTT HiFreqScalp v3.4</b> is a high-frequency scalp trading indicator for TradingView that identifies rapid market opportunities using EMA, RSI, ADX, and volume analysis. Now featuring a <span class="color-success">fixed pip distance system</span> for consistent profit targets and stop losses, enhanced performance optimizations, and simplified user interface. 🎯</p>
+
+    <div class="new-feature">
+      <b>🆕 v3.4 New Features:</b> Fixed 5-pip profit targets/stop losses, simplified "Profit Target" labels, clean emoji indicators (🎯/💀), all filters disabled by default for more signals, and performance optimizations through code cleanup.
+    </div>
+
+    <h2>📊 Signal Types</h2>
+    <table class="signal-table">
+      <tr><th>Signal</th><th>Description</th><th>Enhancement</th></tr>
+      <tr><td class="signal">Syzygy Pivot Long</td><td>Fast EMA crosses above Middle EMA. Potential bullish move.</td><td>Fixed 5-pip profit target and stop loss system.</td></tr>
+      <tr><td class="signal">Syzygy Pivot Short</td><td>Fast EMA crosses below Middle EMA. Potential bearish move.</td><td>Consistent pip-based risk management.</td></tr>
+      <tr><td class="signal">SMP Strong</td><td>Syzygy Momentum Peak: Strong overbought/oversold with high ADX and volume.</td><td>Refined thresholds based on success tracking.</td></tr>
+      <tr><td class="signal">SMP Weak</td><td>Potential momentum peak with moderate conditions.</td><td>Probability scores and risk assessment.</td></tr>
+      <tr><td class="signal">📈 Overbought/Oversold</td><td>RSI crosses key thresholds.</td><td>Dynamic threshold adjustment.</td></tr>
+    </table>
+
+    <h2>🎯 Price Projection System</h2>
+    <ul>
+      <li><b>Fixed Pip Distance:</b> Default 5-pip profit targets and stop losses for consistent risk management</li>
+      <li><b>Profit Target Lines:</b> Thin dashed lines showing exact profit target levels with "Profit Target" labels</li>
+      <li><b>Stop Loss Lines:</b> Thin solid lines showing exact stop loss levels with "Stop Loss" labels</li>
+      <li><b>Target Indicators:</b> 🎯 emoji appears when profit target is reached</li>
+      <li><b>Stop Loss Indicators:</b> 💀 emoji appears when stop loss is hit</li>
+      <li><b>Dynamic Distance Option:</b> Toggle between fixed pip distance and dynamic distance calculation</li>
+    </ul>
+
+    <h2>👀 How to Read Signals</h2>
+    <ol>
+      <li><b>Pivot Signals:</b> <span class="color-long">Green triangle up</span> (Long) and <span class="color-short">White triangle down</span> (Short) mark key EMA crossovers.</li>
+      <li><b>SMP Dots:</b> <span class="color-warning">Large yellow dots (S/W)</span> signal strong momentum peaks; <span class="color-ai">small purple dots</span> indicate weaker setups.</li>
+      <li><b>Profit Targets:</b> <span class="color-success">🎯 emoji</span> appears when price reaches the profit target level</li>
+      <li><b>Stop Losses:</b> <span class="color-warning">💀 emoji</span> appears when price hits the stop loss level</li>
+      <li><b>Table Analysis:</b> The on-chart table shows RSI, ADX, volume, trend direction, and market structure. 📊</li>
+      <li><b>Trend Duration:</b> Table displays trend duration predictions and historical pattern analysis. ⏱️</li>
+    </ol>
+
+    <h2>🎨 Chart Visuals</h2>
+    <ul>
+      <li><b>Price Line Color:</b> Changes based on <span class="color-long">bullish (teal)</span>, <span class="color-short">bearish (purple)</span>, or neutral (white) EMA relationships.</li>
+      <li><b>Profit Target Lines:</b> Thin dashed lines (green for long, red for short) with "Profit Target" labels</li>
+      <li><b>Stop Loss Lines:</b> Thin solid lines (red for long, green for short) with "Stop Loss" labels</li>
+      <li><b>Table Rows:</b> Display alert status, trading style, indicator values, SMP alerts, trend stats, and market structure analysis. 📋</li>
+      <li><b>Orange Flashing:</b> <span class="color-warning">🟠 Orange flashing</span> indicates current trend exceeds historical average duration.</li>
+      <li><b>Market Structure:</b> Color-coded background shows trending (red/green), ranging (orange), or mixed (yellow) market conditions.</li>
+    </ul>
+
+    <h2>✅ Best Practices</h2>
+    <ul>
+      <li>Use the fixed pip distance system for consistent risk management across all trades. 🎯</li>
+      <li>Monitor profit target and stop loss levels for optimal entry and exit timing. 📈</li>
+      <li>Wait for confirmed signals (high volume, strong ADX, favorable market structure) before acting. ⏳</li>
+      <li>Be cautious during low signal confidence or high market noise periods. ⚠️</li>
+      <li>Review the on-chart table for comprehensive analysis before entering trades. 🔍</li>
+      <li>Adapt your strategy based on market structure: trending markets favor directional trades, ranging markets favor support/resistance levels.</li>
+      <li>Enable filters selectively based on market conditions: volume filter for volatile markets, candle pattern filter for clear setups.</li>
+    </ul>
+    <div class="ai-highlight">
+      <b>💡 Key Insight:</b> The fixed pip distance system provides consistent risk management. <span class="color-success">5-pip targets</span> are ideal for scalping, while the dynamic distance option allows for market-specific adjustments. Market structure analysis helps identify optimal trading conditions.
+    </div>
+
+    <h2>🔔 Alert Setup</h2>
+    <ol>
+      <li>Click the <b>⏰ Alarm Clock</b> icon on TradingView.</li>
+      <li>Select <b>WTT HiFreqScalp</b> as the indicator.</li>
+      <li>Configure settings:<br>
+        <ul>
+          <li><b>Fixed Pip Distance:</b> Set to 5.0 pips by default (1.0-50.0 range) for consistent targets</li>
+          <li><b>Use Fixed Distance:</b> Toggle between fixed pip distance and dynamic calculation</li>
+          <li><b>Signal Spam Filter:</b> Adjust bars between signals (1-20) - lower for more frequent signals, higher for fewer</li>
+          <li><b>Volume Filter:</b> Disabled by default - enable for stricter volume confirmation</li>
+          <li><b>Candle Pattern Filter:</b> Disabled by default - enable for pattern confirmation</li>
+          <li><b>Market Structure Filter:</b> Disabled by default - enable for structure alignment</li>
+          <li><b>Enable Alerts:</b> Toggle all alerts on/off</li>
+        </ul>
+      </li>
+      <li>Choose alerts:<br>
+        <ul>
+          <li><b>🟢 Syzygy Pivot Long/Short</b> – EMA cross signals</li>
+          <li><b>💪 Syzygy Momentum Peak</b> – SMP signals with success probability</li>
+          <li><b>🎯 Price Projection Target Reached</b> – Profit target hit alerts</li>
+          <li><b>💀 Stop Loss Hit</b> – Stop loss triggered alerts</li>
+        </ul>
+      </li>
+      <li>Set alert actions (popup, email, webhook, etc.). 📱</li>
+    </ol>
+
+    <div class="quickref">
+      <b>⚡ Quick Reference:</b><br>
+      <ul>
+        <li><b>Green Triangle Up (B):</b> Bullish EMA cross (Long)</li>
+        <li><b>White Triangle Down (S):</b> Bearish EMA cross (Short)</li>
+        <li><b>Yellow Dot (S/W):</b> Strong SMP (high confidence momentum peak)</li>
+        <li><b>Purple Dot (S/W):</b> Weak SMP (moderate confidence potential reversal)</li>
+        <li><b>🎯 Emoji:</b> Profit target reached</li>
+        <li><b>💀 Emoji:</b> Stop loss hit</li>
+        <li><b>🔴🟢 Red/Green Circles:</b> Overbought/oversold RSI thresholds</li>
+        <li><b>📊 Table:</b> Check trend, volume, SMP success rates, confidence levels, and market structure</li>
+        <li><b>Market Structure Colors:</b> Red (uptrend), Green (downtrend), Orange (ranging), Yellow (mixed)</li>
+        <li><b>Fixed Pip Distance:</b> 5.0 pips default for profit targets and stop losses</li>
+        <li><b>Signal Spam Filter:</b> Adjustable 1-20 bars between consecutive signals</li>
+        <li><b>All Filters:</b> Disabled by default for more initial signals</li>
+      </ul>
+    </div>
+
+    <div class="tip">
+      <b>🧠 Pro Tip:</b> The v3.4 fixed pip distance system provides consistent risk management ideal for scalping. <span class="color-success">5-pip targets</span> work well for most forex pairs and timeframes. Enable filters selectively based on market conditions - volume filter for volatile markets, candle pattern filter for clear setups, and market structure filter for trend alignment. The simplified interface with clean emoji indicators (🎯/💀) provides clear visual feedback for trade management. 📈
+    </div>
+
+    <footer>
+      &copy; 2024 William Skrzypczak | Waverider Trading Technologies | Trading Solutions 🚀
+    </footer>
+  </div>
+</body>
+</html> 

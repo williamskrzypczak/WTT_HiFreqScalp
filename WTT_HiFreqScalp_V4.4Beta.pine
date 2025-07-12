@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v5.9 Beta (Synchronized table row highlighting with alert conditions for perfect visual feedback alignment)
-// Next Version: v6.0 Beta
+// Revision: v6.0 Beta (Enhanced Three Bar Strategy Performance Table with ranking system and synchronized row highlighting)
+// Next Version: v6.1 Beta
 //
 // =====================================================================================================================
 //
@@ -20,13 +20,14 @@
 //   v5.0 Beta - Enhanced signal tracking with bars since signal display, Keltner breakout performance tracking, and comprehensive ranking system (1-4)
 //   v5.1 Beta - Fixed bar count logic to start counting from bar AFTER signal trigger for more intuitive timing display
 //   v5.2 Beta - Enhanced pivot signal filtering to only show and alert when market is trending in the correct direction
-//   v5.3 Beta - Added pip capture table showing 3-bar pip movement analysis for SMP, Pivot, and Bounce signals with configurable position and lookback
-//   v5.4 Beta - Fixed pip capture table display issues, improved calculation logic to accumulate pip captures over time, added persistent storage for accurate statistics
-//   v5.5 Beta - Fixed Keltner Channel variable scope issues causing undeclared identifier errors, added profitability table toggle with default disabled, and improved code organization
+//   v5.3 Beta - Added three bar strategy performance table showing 3-bar pip movement analysis for SMP, Pivot, and Bounce signals with configurable position and lookback
+//   v5.4 Beta - Fixed three bar strategy performance table display issues, improved calculation logic to accumulate pip captures over time, added persistent storage for accurate statistics
+//   v5.5 Beta - Fixed Keltner Channel variable scope issues causing undeclared identifier errors, added three bar strategy performance table toggle with default disabled, and improved code organization
 //   v5.6 Beta - Standardized code spacing to exactly 2 blank lines between major sections, updated alert condition comments to match exact titles, and improved overall code readability
 //   v5.7 Beta - Enhanced highest ranking signal visibility with bright lime green background highlighting and larger text size for better visual prominence
 //   v5.8 Beta - Finalized visual enhancements for highest ranking signal prominence and improved overall code documentation
 //   v5.9 Beta - Synchronized table row highlighting with alert conditions for perfect visual feedback alignment
+//   v6.0 Beta - Enhanced Three Bar Strategy Performance Table with ranking system based on pip capture performance, synchronized row highlighting, and improved table organization
 
 //
 // =====================================================================================================================
@@ -48,11 +49,11 @@ indicator("WTT_HiFreqScalp_V5.2Beta", overlay=true)
 // Organizing inputs into logical groups for better UI experience ------------------------------------------------------
 var GROUP_TRADING_STYLE = "Trading Style Presets"
 var GROUP_DISPLAY = "Display Preferences"
-var GROUP_RSI_ADX = "RSI & ADX Monitor Settings"
+var GROUP_RSI_ADX = "5 x 5 Strategy Performance Table Settings"
 var GROUP_ALERT_TIME = "Alert Setting"
 var GROUP_MARKET_STRUCTURE = "Market Structure Detection"
 var GROUP_KELTNER = "Keltner Channel Settings"
-var GROUP_PIP_CAPTURE = "Pip Capture Table Settings"
+var GROUP_PIP_CAPTURE = "Three Bar Strategy Performance Table Settings"
 
 // ==================================== TRADING STYLE PRESETS ==========================================================
 // Trading style selection with optimized parameters -------------------------------------------------------------------
@@ -71,14 +72,21 @@ volume_ma_length = trading_style == "Scalping" ? 20 : trading_style == "Day Trad
 // ====================================== DISPLAY OPTIONS ==============================================================
 // Display preferences for chart visualization -------------------------------------------------------------------------
 
-// ================================= RSI & ADX MONITOR SETTINGS ========================================================
+// ================================== THREE BAR STRATEGY PERFORMANCE TABLE SETTINGS ====================================
+// Settings for the three bar strategy performance table that shows 3-bar pip movement ---------------------------------
+show_pip_capture_table = input.bool(true, title="Show Three Bar Strategy Performance Table", group=GROUP_PIP_CAPTURE, tooltip="Display table showing pip capture for trades held for 3 bars")
+pip_table_position = input.string("bottom_left", title="Pip Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_PIP_CAPTURE)
+pip_capture_lookback = input.int(50, title="Pip Capture Lookback", minval=10, maxval=200, group=GROUP_PIP_CAPTURE, tooltip="Number of recent signals to track for pip capture analysis")
+
+
+// ================================= 5 x 5 STRATEGY PERFORMANCE TABLE SETTINGS =========================================
 // Parameters for RSI and ADX calculations and display - dynamically set based on trading style ------------------------
 rsi_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : 21
 adx_length = trading_style == "Scalping" ? 14 : trading_style == "Day Trading" ? 14 : 21
 rsi_overbought = trading_style == "Scalping" ? 75 : trading_style == "Day Trading" ? 70 : 65
 rsi_oversold = trading_style == "Scalping" ? 25 : trading_style == "Day Trading" ? 30 : 35
 adx_threshold = trading_style == "Scalping" ? 25 : trading_style == "Day Trading" ? 30 : 25
-show_table = input.bool(true, title="Show RSI & ADX Monitor", group=GROUP_RSI_ADX)
+show_table = input.bool(true, title="Show 5 x 5 Strategy Performance Table", group=GROUP_RSI_ADX)
 table_position = input.string("bottom_right", title="Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_RSI_ADX)
 show_performance_data = input.bool(false, title="Show Performance Data", group=GROUP_RSI_ADX, tooltip="Display success rates and signal counts for SMP, Pivot, and Bounce signals")
 show_debug_row = input.bool(false, title="Show Debug Row", group=GROUP_RSI_ADX, tooltip="Display debug information row in the table")
@@ -113,14 +121,12 @@ volume_threshold_multiplier = 1.5
 enable_pullback_detection = input.bool(true, title="Enable Pullback Detection", group=GROUP_ALERT_TIME, tooltip="Detect pullbacks after pivot signals for potential re-entry opportunities")
 pullback_percentage = input.float(0.15, title="Pullback Percentage", minval=0.01, maxval=10.0, step=0.05, group=GROUP_ALERT_TIME, tooltip="Percentage pullback required to trigger detection (0.01-10.0%)")
 pullback_lookback_bars = input.int(50, title="Pullback Lookback Bars", minval=5, maxval=100, group=GROUP_ALERT_TIME, tooltip="Maximum bars to look back for pullback detection after pivot signal")
-show_pullback_indicators = input.bool(true, title="Show Pullback Indicators", group=GROUP_DISPLAY, tooltip="Display visual indicators for pullback detection on chart")
 
 // ================================== TREND VS RANGE DETECTION =========================================================
 // Market structure detection parameters -------------------------------------------------------------------------------
 trend_range_lookback = 20
 trend_threshold = 0.45
 range_threshold = 0.35
-show_market_structure = input.bool(true, "Show Market Structure in Table", group=GROUP_MARKET_STRUCTURE, tooltip="Display market structure analysis in the RSI & ADX table")
 
 // ================================== KELTNER CHANNEL SETTINGS ==========================================================
 // Keltner Channel parameters for ranging/mixed market conditions ------------------------------------------------------
@@ -133,14 +139,14 @@ volatility_min_multiplier = input.float(0.8, title="Min Volatility Multiplier", 
 volatility_max_multiplier = input.float(2.5, title="Max Volatility Multiplier", minval=1.5, maxval=5.0, step=0.1, group=GROUP_KELTNER, tooltip="Maximum multiplier during high volatility")
 keltner_source = input.source(close, title="Keltner Source", group=GROUP_KELTNER, tooltip="Price source for Keltner Channel calculation")
 
-// ================================== PIP CAPTURE TABLE SETTINGS ======================================================
-// Settings for the pip capture table that shows 3-bar pip movement --------------------------------------------------
-show_pip_capture_table = input.bool(false, title="Show Profitability Table", group=GROUP_PIP_CAPTURE, tooltip="Display table showing pip capture for trades held for 3 bars")
-pip_table_position = input.string("bottom_left", title="Pip Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_PIP_CAPTURE)
-pip_capture_lookback = input.int(50, title="Pip Capture Lookback", minval=10, maxval=200, group=GROUP_PIP_CAPTURE, tooltip="Number of recent signals to track for pip capture analysis")
 
 // ================================== GLOBAL VARIABLES =================================================================
 // Initialize success tracking variables globally ----------------------------------------------------------------------
+
+// Hardcoded display settings (removed from input controls)
+show_pullback_indicators = true
+show_market_structure = true
+
 var float overall_success_ratio = 0.0
 var int total_signals = 0
 
@@ -1273,7 +1279,7 @@ plotshape(short_bounce_alert_ready,
      title="Short Pivot Pullback Bounce")
 
 
-// ================================== RSI & ADX MONITOR TABLE (OPTIMIZED) ==============================================
+// ================================== 5 x 5 STRATEGY PERFORMANCE TABLE (OPTIMIZED) ======================================
 // Only update table when signals change or every 10 bars for performance ----------------------------------------------
 var string lastTableUpdateKey = ""
 tableUpdateKey = str.tostring(longSignalActive) + str.tostring(shortSignalActive) + str.tostring(strict_momentum_peak_long) + str.tostring(strict_momentum_peak_short) + str.tostring(bar_index % 10)
@@ -1284,7 +1290,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     // Create table with position based on user selection
     var table monitor_table = table.new(position = table_position == "top_right" ? 
      position.top_right : table_position == "top_left" ? position.top_left : table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 4, rows = 10, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 5, rows = 11, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Combined Alert Status and Style row
@@ -1295,6 +1301,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
          bgcolor=color.rgb(108, 107, 111), text_color=get_color_brightness(color.r(color.rgb(108, 107, 111)), color.g(color.rgb(108, 107, 111)), color.b(color.rgb(108, 107, 111))) > 128 ? color.black : color.white, text_size=size.normal)
     table.cell(monitor_table, 2, 0, "Rank", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 3, 0, "Bars", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 4, 0, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Combined Indicators row
     rsi_display = str.tostring(math.round(rsi_value, 1)) + (rsi_value <= rsi_oversold ? "🟢" : rsi_value >= rsi_overbought ? "🔴" : "🇨🇭")
@@ -1309,6 +1316,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     table.cell(monitor_table, 1, 1, combined_indicators, bgcolor=rsi_gradient_color, text_color=get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white, text_size=size.normal)
     table.cell(monitor_table, 2, 1, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 3, 1, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 4, 1, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Calculate signal rankings for the new column
     smp_success_rate = total_signals > 0 ? overall_success_ratio : 0
@@ -1326,249 +1334,180 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     bounce_rank_color = color.white
     keltner_rank_color = color.white
     
-    // Only rank signals with sufficient data (at least 2 signals)
+    // Simple ranking system - rank signals 1-4 based on success rates
+    // Only rank signals with at least 2 trades for reliability
     if total_signals >= 2 and pivot_total_signals >= 2 and bounce_total_signals >= 2 and keltner_total_signals >= 2
-        // All four signals have data - rank them 1-4
-        // Create arrays to sort and rank
-        var array<float> success_rates = array.new<float>()
-        var array<string> signal_names = array.new<string>()
-        
-        array.push(success_rates, smp_success_rate)
-        array.push(success_rates, pivot_success_rate)
-        array.push(success_rates, bounce_success_rate)
-        array.push(success_rates, keltner_success_rate)
-        array.push(signal_names, "SMP")
-        array.push(signal_names, "PIVOT")
-        array.push(signal_names, "BOUNCE")
-        array.push(signal_names, "KELTNER")
-        
-        // Find rankings by comparing each signal to all others
-        smp_rank := "1"
-        pivot_rank := "1"
-        bounce_rank := "1"
-        keltner_rank := "1"
-        smp_rank_color := color.yellow
-        pivot_rank_color := color.yellow
-        bounce_rank_color := color.yellow
-        keltner_rank_color := color.yellow
-        
-        // Count how many signals each one beats or ties
-        smp_beats = 0
-        pivot_beats = 0
-        bounce_beats = 0
-        keltner_beats = 0
-        
-        if smp_success_rate >= pivot_success_rate
-            smp_beats := smp_beats + 1
-        if smp_success_rate >= bounce_success_rate
-            smp_beats := smp_beats + 1
-        if smp_success_rate >= keltner_success_rate
-            smp_beats := smp_beats + 1
-            
-        if pivot_success_rate >= smp_success_rate
-            pivot_beats := pivot_beats + 1
-        if pivot_success_rate >= bounce_success_rate
-            pivot_beats := pivot_beats + 1
-        if pivot_success_rate >= keltner_success_rate
-            pivot_beats := pivot_beats + 1
-            
-        if bounce_success_rate >= smp_success_rate
-            bounce_beats := bounce_beats + 1
-        if bounce_success_rate >= pivot_success_rate
-            bounce_beats := bounce_beats + 1
-        if bounce_success_rate >= keltner_success_rate
-            bounce_beats := bounce_beats + 1
-            
-        if keltner_success_rate >= smp_success_rate
-            keltner_beats := keltner_beats + 1
-        if keltner_success_rate >= pivot_success_rate
-            keltner_beats := keltner_beats + 1
-        if keltner_success_rate >= bounce_success_rate
-            keltner_beats := keltner_beats + 1
-        
-        // Assign ranks based on how many signals each beats (4 = 1st, 3 = 2nd, 2 = 3rd, 1 = 4th)
-        if smp_beats == 4
+        // All four signals have data - simple ranking by success rate
+        if smp_success_rate >= pivot_success_rate and smp_success_rate >= bounce_success_rate and smp_success_rate >= keltner_success_rate
             smp_rank := "1"
             smp_rank_color := color.yellow
-        else if smp_beats == 3
-            smp_rank := "2"
-            smp_rank_color := color.gray
-        else if smp_beats == 2
-            smp_rank := "3"
-            smp_rank_color := color.orange
-        else
-            smp_rank := "4"
-            smp_rank_color := color.red
-            
-        if pivot_beats == 4
+            if pivot_success_rate >= bounce_success_rate and pivot_success_rate >= keltner_success_rate
+                pivot_rank := "2"
+                pivot_rank_color := color.gray
+                if bounce_success_rate >= keltner_success_rate
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+            else if bounce_success_rate >= pivot_success_rate and bounce_success_rate >= keltner_success_rate
+                bounce_rank := "2"
+                bounce_rank_color := color.gray
+                if pivot_success_rate >= keltner_success_rate
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+            else
+                keltner_rank := "2"
+                keltner_rank_color := color.gray
+                if pivot_success_rate >= bounce_success_rate
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+                else
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+        else if pivot_success_rate >= smp_success_rate and pivot_success_rate >= bounce_success_rate and pivot_success_rate >= keltner_success_rate
             pivot_rank := "1"
             pivot_rank_color := color.yellow
-        else if pivot_beats == 3
-            pivot_rank := "2"
-            pivot_rank_color := color.gray
-        else if pivot_beats == 2
-            pivot_rank := "3"
-            pivot_rank_color := color.orange
-        else
-            pivot_rank := "4"
-            pivot_rank_color := color.red
-            
-        if bounce_beats == 4
+            if smp_success_rate >= bounce_success_rate and smp_success_rate >= keltner_success_rate
+                smp_rank := "2"
+                smp_rank_color := color.gray
+                if bounce_success_rate >= keltner_success_rate
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+            else if bounce_success_rate >= smp_success_rate and bounce_success_rate >= keltner_success_rate
+                bounce_rank := "2"
+                bounce_rank_color := color.gray
+                if smp_success_rate >= keltner_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
+            else
+                keltner_rank := "2"
+                keltner_rank_color := color.gray
+                if smp_success_rate >= bounce_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+                else
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
+        else if bounce_success_rate >= smp_success_rate and bounce_success_rate >= pivot_success_rate and bounce_success_rate >= keltner_success_rate
             bounce_rank := "1"
             bounce_rank_color := color.yellow
-        else if bounce_beats == 3
-            bounce_rank := "2"
-            bounce_rank_color := color.gray
-        else if bounce_beats == 2
-            bounce_rank := "3"
-            bounce_rank_color := color.orange
-        else
-            bounce_rank := "4"
-            bounce_rank_color := color.red
-            
-        if keltner_beats == 4
-            keltner_rank := "1"
-            keltner_rank_color := color.yellow
-        else if keltner_beats == 3
-            keltner_rank := "2"
-            keltner_rank_color := color.gray
-        else if keltner_beats == 2
-            keltner_rank := "3"
-            keltner_rank_color := color.orange
-        else
-            keltner_rank := "4"
-            keltner_rank_color := color.red
-    else if total_signals >= 2 and pivot_total_signals >= 2 and keltner_total_signals >= 2
-        // Only SMP, Pivot, and Keltner have data - rank 1-3
-        if smp_success_rate >= pivot_success_rate and smp_success_rate >= keltner_success_rate
-            smp_rank := "1"
-            smp_rank_color := color.yellow
-            pivot_rank := "2"
-            pivot_rank_color := color.gray
-            keltner_rank := "3"
-            keltner_rank_color := color.orange
-        else if pivot_success_rate >= smp_success_rate and pivot_success_rate >= keltner_success_rate
-            pivot_rank := "1"
-            pivot_rank_color := color.yellow
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            keltner_rank := "3"
-            keltner_rank_color := color.orange
-        else
-            keltner_rank := "1"
-            keltner_rank_color := color.yellow
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            pivot_rank := "3"
-            pivot_rank_color := color.orange
-    else if total_signals >= 2 and bounce_total_signals >= 2 and keltner_total_signals >= 2
-        // Only SMP, Bounce, and Keltner have data - rank 1-3
-        if smp_success_rate >= bounce_success_rate and smp_success_rate >= keltner_success_rate
-            smp_rank := "1"
-            smp_rank_color := color.yellow
-            bounce_rank := "2"
-            bounce_rank_color := color.gray
-            keltner_rank := "3"
-            keltner_rank_color := color.orange
-        else if bounce_success_rate >= smp_success_rate and bounce_success_rate >= keltner_success_rate
-            bounce_rank := "1"
-            bounce_rank_color := color.yellow
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            keltner_rank := "3"
-            keltner_rank_color := color.orange
+            if smp_success_rate >= pivot_success_rate and smp_success_rate >= keltner_success_rate
+                smp_rank := "2"
+                smp_rank_color := color.gray
+                if pivot_success_rate >= keltner_success_rate
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+            else if pivot_success_rate >= smp_success_rate and pivot_success_rate >= keltner_success_rate
+                pivot_rank := "2"
+                pivot_rank_color := color.gray
+                if smp_success_rate >= keltner_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    keltner_rank := "4"
+                    keltner_rank_color := color.red
+                else
+                    keltner_rank := "3"
+                    keltner_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
+            else
+                keltner_rank := "2"
+                keltner_rank_color := color.gray
+                if smp_success_rate >= pivot_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+                else
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
         else
             keltner_rank := "1"
             keltner_rank_color := color.yellow
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            bounce_rank := "3"
-            bounce_rank_color := color.orange
-    else if total_signals >= 2 and pivot_total_signals >= 2
-        // Only SMP and Pivot have data - rank 1-2
-        if smp_success_rate >= pivot_success_rate
-            smp_rank := "1"
-            smp_rank_color := color.yellow
-            pivot_rank := "2"
-            pivot_rank_color := color.gray
-        else
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            pivot_rank := "1"
-            pivot_rank_color := color.yellow
-    else if total_signals >= 2 and bounce_total_signals >= 2
-        // Only SMP and Bounce have data - rank 1-2
-        if smp_success_rate >= bounce_success_rate
-            smp_rank := "1"
-            smp_rank_color := color.yellow
-            bounce_rank := "2"
-            bounce_rank_color := color.gray
-        else
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            bounce_rank := "1"
-            bounce_rank_color := color.yellow
-    else if total_signals >= 2 and keltner_total_signals >= 2
-        // Only SMP and Keltner have data - rank 1-2
-        if smp_success_rate >= keltner_success_rate
-            smp_rank := "1"
-            smp_rank_color := color.yellow
-            keltner_rank := "2"
-            keltner_rank_color := color.gray
-        else
-            smp_rank := "2"
-            smp_rank_color := color.gray
-            keltner_rank := "1"
-            keltner_rank_color := color.yellow
-    else if pivot_total_signals >= 2 and bounce_total_signals >= 2
-        // Only Pivot and Bounce have data - rank 1-2
-        if pivot_success_rate >= bounce_success_rate
-            pivot_rank := "1"
-            pivot_rank_color := color.yellow
-            bounce_rank := "2"
-            bounce_rank_color := color.gray
-        else
-            pivot_rank := "2"
-            pivot_rank_color := color.gray
-            bounce_rank := "1"
-            bounce_rank_color := color.yellow
-    else if pivot_total_signals >= 2 and keltner_total_signals >= 2
-        // Only Pivot and Keltner have data - rank 1-2
-        if pivot_success_rate >= keltner_success_rate
-            pivot_rank := "1"
-            pivot_rank_color := color.yellow
-            keltner_rank := "2"
-            keltner_rank_color := color.gray
-        else
-            pivot_rank := "2"
-            pivot_rank_color := color.gray
-            keltner_rank := "1"
-            keltner_rank_color := color.yellow
-    else if bounce_total_signals >= 2 and keltner_total_signals >= 2
-        // Only Bounce and Keltner have data - rank 1-2
-        if bounce_success_rate >= keltner_success_rate
-            bounce_rank := "1"
-            bounce_rank_color := color.yellow
-            keltner_rank := "2"
-            keltner_rank_color := color.gray
-        else
-            bounce_rank := "2"
-            bounce_rank_color := color.gray
-            keltner_rank := "1"
-            keltner_rank_color := color.yellow
-    else if total_signals >= 2
-        smp_rank := "1"
-        smp_rank_color := color.yellow
-    else if pivot_total_signals >= 2
-        pivot_rank := "1"
-        pivot_rank_color := color.yellow
-    else if bounce_total_signals >= 2
-        bounce_rank := "1"
-        bounce_rank_color := color.yellow
-    else if keltner_total_signals >= 2
-        keltner_rank := "1"
-        keltner_rank_color := color.yellow
+            if smp_success_rate >= pivot_success_rate and smp_success_rate >= bounce_success_rate
+                smp_rank := "2"
+                smp_rank_color := color.gray
+                if pivot_success_rate >= bounce_success_rate
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+                else
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+            else if pivot_success_rate >= smp_success_rate and pivot_success_rate >= bounce_success_rate
+                pivot_rank := "2"
+                pivot_rank_color := color.gray
+                if smp_success_rate >= bounce_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    bounce_rank := "4"
+                    bounce_rank_color := color.red
+                else
+                    bounce_rank := "3"
+                    bounce_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
+            else
+                bounce_rank := "2"
+                bounce_rank_color := color.gray
+                if smp_success_rate >= pivot_success_rate
+                    smp_rank := "3"
+                    smp_rank_color := color.orange
+                    pivot_rank := "4"
+                    pivot_rank_color := color.red
+                else
+                    pivot_rank := "3"
+                    pivot_rank_color := color.orange
+                    smp_rank := "4"
+                    smp_rank_color := color.red
     else
+        // Not enough data for ranking
         smp_rank := "-"
         pivot_rank := "-"
         bounce_rank := "-"
@@ -1652,6 +1591,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     table.cell(monitor_table, 1, 2, setup_message + "\n" + trade_suggestion, text_color=setup_color == color.lime or setup_color == color.green ? color.black : color.white, bgcolor=setup_color, text_size=size.normal)
     table.cell(monitor_table, 2, 2, smp_rank, text_color=smp_rank_color, text_size=highest_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_rank_signal == "SMP" ? color.lime : color.black)
     table.cell(monitor_table, 3, 2, smp_bars_display, text_color=smp_bars_color, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 4, 2, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // SMP Performance row - only show if enabled
     if show_performance_data
@@ -1660,6 +1600,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 3, trend_performance_display, text_color=color.white, bgcolor=color.blue, text_size=size.normal)
         table.cell(monitor_table, 2, 3, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 3, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 3, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Syzygy Pivot Alerts row
     // Calculate pivot trade direction suggestion
@@ -1715,6 +1656,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     table.cell(monitor_table, 1, 4, combined_pivot_trends, text_color=color.white, bgcolor=lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray, text_size=size.normal)
     table.cell(monitor_table, 2, 4, pivot_rank, text_color=pivot_rank_color, text_size=highest_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_rank_signal == "PIVOT" ? color.lime : color.black)
     table.cell(monitor_table, 3, 4, pivot_bars_display, text_color=pivot_bars_color, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 4, 4, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Pivot Performance row - only show if enabled
     if show_performance_data
@@ -1770,6 +1712,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 5, pivot_performance_display, text_color=color.white, bgcolor=color.teal, text_size=size.normal)
         table.cell(monitor_table, 2, 5, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 5, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 5, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Pullback Detection row - only show if enabled
     if enable_pullback_detection
@@ -1843,6 +1786,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 6, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
         table.cell(monitor_table, 2, 6, bounce_rank, text_color=bounce_rank_color, text_size=highest_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_rank_signal == "BOUNCE" ? color.lime : color.black)
         table.cell(monitor_table, 3, 6, bounce_bars_display, text_color=bounce_bars_color, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 6, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Bounce Performance row - only show if enabled
     if show_performance_data and enable_pullback_detection
@@ -1898,6 +1842,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 7, bounce_performance_display, text_color=color.white, bgcolor=color.fuchsia, text_size=size.normal)
         table.cell(monitor_table, 2, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 7, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Calculate bars since Keltner signal (for use in multiple rows) (start counting from bar AFTER signal)
     bars_since_keltner = last_keltner_signal_bar > 0 ? bar_index - last_keltner_signal_bar - 1 : 999
@@ -1965,6 +1910,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 8, keltner_performance_display, text_color=color.white, bgcolor=color.orange, text_size=size.normal)
         table.cell(monitor_table, 2, 8, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 8, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 8, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
 
 
@@ -1997,44 +1943,275 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 1, 9, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
         table.cell(monitor_table, 2, 9, keltner_rank, text_color=keltner_rank_color, text_size=highest_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_rank_signal == "KELTNER" ? color.lime : color.black)
         table.cell(monitor_table, 3, 9, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
+        table.cell(monitor_table, 4, 9, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
-// ================================== PIP CAPTURE TABLE ================================================================
-// Display pip capture table showing 3-bar pip movement for each signal type ------------------------------------------
+    // Table name row at the bottom
+    table.cell(monitor_table, 0, 10, "5 x 5 Strategy", text_color=color.white, text_size=size.large, bgcolor=color.black)
+    table.cell(monitor_table, 1, 10, "Performance Table", text_color=color.white, text_size=size.large, bgcolor=color.black)
+    table.cell(monitor_table, 2, 10, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 3, 10, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(monitor_table, 4, 10, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+
+// ================================== THREE BAR STRATEGY PERFORMANCE TABLE =============================================
+// Display three bar strategy performance table showing 3-bar pip movement for each signal type -------------------------
 if show_pip_capture_table
-    // Create pip capture table with position based on user selection (create once)
+    // Calculate rankings based on pip capture performance (only rank signals with at least 2 trades for reliability)
+    smp_pip_rank = ""
+    pivot_pip_rank = ""
+    bounce_pip_rank = ""
+    keltner_pip_rank = ""
+    smp_pip_rank_color = color.white
+    pivot_pip_rank_color = color.white
+    bounce_pip_rank_color = color.white
+    keltner_pip_rank_color = color.white
+    
+    // Simple ranking system - rank signals 1-4 based on pip capture performance
+    if smp_total_captures >= 2 and pivot_total_captures >= 2 and bounce_total_captures >= 2 and keltner_total_captures >= 2
+        // All four signals have data - simple ranking by pip capture
+        if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= bounce_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
+            smp_pip_rank := "1"
+            smp_pip_rank_color := color.yellow
+            if pivot_avg_pip_capture >= bounce_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
+                pivot_pip_rank := "2"
+                pivot_pip_rank_color := color.gray
+                if bounce_avg_pip_capture >= keltner_avg_pip_capture
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+            else if bounce_avg_pip_capture >= pivot_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
+                bounce_pip_rank := "2"
+                bounce_pip_rank_color := color.gray
+                if pivot_avg_pip_capture >= keltner_avg_pip_capture
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+            else
+                keltner_pip_rank := "2"
+                keltner_pip_rank_color := color.gray
+                if pivot_avg_pip_capture >= bounce_avg_pip_capture
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+                else
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+        else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= bounce_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
+            pivot_pip_rank := "1"
+            pivot_pip_rank_color := color.yellow
+            if smp_avg_pip_capture >= bounce_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
+                smp_pip_rank := "2"
+                smp_pip_rank_color := color.gray
+                if bounce_avg_pip_capture >= keltner_avg_pip_capture
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+            else if bounce_avg_pip_capture >= smp_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
+                bounce_pip_rank := "2"
+                bounce_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= keltner_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+            else
+                keltner_pip_rank := "2"
+                keltner_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= bounce_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+                else
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+        else if bounce_avg_pip_capture >= smp_avg_pip_capture and bounce_avg_pip_capture >= pivot_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
+            bounce_pip_rank := "1"
+            bounce_pip_rank_color := color.yellow
+            if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
+                smp_pip_rank := "2"
+                smp_pip_rank_color := color.gray
+                if pivot_avg_pip_capture >= keltner_avg_pip_capture
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+            else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
+                pivot_pip_rank := "2"
+                pivot_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= keltner_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    keltner_pip_rank := "4"
+                    keltner_pip_rank_color := color.red
+                else
+                    keltner_pip_rank := "3"
+                    keltner_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+            else
+                keltner_pip_rank := "2"
+                keltner_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= pivot_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+                else
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+        else
+            keltner_pip_rank := "1"
+            keltner_pip_rank_color := color.yellow
+            if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= bounce_avg_pip_capture
+                smp_pip_rank := "2"
+                smp_pip_rank_color := color.gray
+                if pivot_avg_pip_capture >= bounce_avg_pip_capture
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+                else
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+            else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= bounce_avg_pip_capture
+                pivot_pip_rank := "2"
+                pivot_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= bounce_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    bounce_pip_rank := "4"
+                    bounce_pip_rank_color := color.red
+                else
+                    bounce_pip_rank := "3"
+                    bounce_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+            else
+                bounce_pip_rank := "2"
+                bounce_pip_rank_color := color.gray
+                if smp_avg_pip_capture >= pivot_avg_pip_capture
+                    smp_pip_rank := "3"
+                    smp_pip_rank_color := color.orange
+                    pivot_pip_rank := "4"
+                    pivot_pip_rank_color := color.red
+                else
+                    pivot_pip_rank := "3"
+                    pivot_pip_rank_color := color.orange
+                    smp_pip_rank := "4"
+                    smp_pip_rank_color := color.red
+    else
+        // Not enough data for ranking
+        smp_pip_rank := "-"
+        pivot_pip_rank := "-"
+        bounce_pip_rank := "-"
+        keltner_pip_rank := "-"
+
+    // Determine which signal has the highest pip capture rank (lowest number = highest rank)
+    var string highest_pip_rank_signal = ""
+    var float highest_pip_rank_value = 999.0
+    
+    if smp_pip_rank != "-" and str.tonumber(smp_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value := str.tonumber(smp_pip_rank)
+        highest_pip_rank_signal := "SMP"
+    if pivot_pip_rank != "-" and str.tonumber(pivot_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value := str.tonumber(pivot_pip_rank)
+        highest_pip_rank_signal := "PIVOT"
+    if bounce_pip_rank != "-" and str.tonumber(bounce_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value := str.tonumber(bounce_pip_rank)
+        highest_pip_rank_signal := "BOUNCE"
+    if keltner_pip_rank != "-" and str.tonumber(keltner_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value := str.tonumber(keltner_pip_rank)
+        highest_pip_rank_signal := "KELTNER"
+    // Create three bar strategy performance table with position based on user selection (create once)
     var table pip_capture_table = table.new(position = pip_table_position == "top_right" ? 
      position.top_right : pip_table_position == "top_left" ? position.top_left : pip_table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = 3, rows = 5, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = 4, rows = 6, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Table header
     table.cell(pip_capture_table, 0, 0, "Signal Type", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(pip_capture_table, 1, 0, "Avg Pips (3 bars)", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(pip_capture_table, 2, 0, "Total Trades", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(pip_capture_table, 3, 0, "Rank", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // SMP row
     smp_pip_color = smp_avg_pip_capture > 0 ? color.green : smp_avg_pip_capture < 0 ? color.red : color.gray
-    table.cell(pip_capture_table, 0, 1, "SMP", text_color=color.white, text_size=size.normal, bgcolor=color.blue)
+    // Highlight SMP indicator name when signal is active (synchronized with alert condition)
+    smp_indicator_bgcolor = not na(smp_highlight_bars) ? color.new(color.blue, 30) : color.black
+    table.cell(pip_capture_table, 0, 1, "SMP", text_color=color.white, text_size=size.normal, bgcolor=smp_indicator_bgcolor)
     table.cell(pip_capture_table, 1, 1, str.tostring(math.round(smp_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=smp_pip_color)
     table.cell(pip_capture_table, 2, 1, str.tostring(smp_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.blue)
+    table.cell(pip_capture_table, 3, 1, smp_pip_rank, text_color=smp_pip_rank_color, text_size=highest_pip_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "SMP" ? color.lime : color.black)
 
     // Pivot row
     pivot_pip_color = pivot_avg_pip_capture > 0 ? color.green : pivot_avg_pip_capture < 0 ? color.red : color.gray
-    table.cell(pip_capture_table, 0, 2, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.teal)
+    // Highlight Pivot indicator name when signal is active (synchronized with alert condition)
+    pivot_indicator_bgcolor = not na(pivot_highlight_bars) ? color.new(color.teal, 30) : color.black
+    table.cell(pip_capture_table, 0, 2, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=pivot_indicator_bgcolor)
     table.cell(pip_capture_table, 1, 2, str.tostring(math.round(pivot_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=pivot_pip_color)
     table.cell(pip_capture_table, 2, 2, str.tostring(pivot_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.teal)
+    table.cell(pip_capture_table, 3, 2, pivot_pip_rank, text_color=pivot_pip_rank_color, text_size=highest_pip_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "PIVOT" ? color.lime : color.black)
 
     // Bounce row
     bounce_pip_color = bounce_avg_pip_capture > 0 ? color.green : bounce_avg_pip_capture < 0 ? color.red : color.gray
-    table.cell(pip_capture_table, 0, 3, "Bounce", text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
+    // Highlight Bounce indicator name when signal is active (synchronized with alert condition)
+    bounce_indicator_bgcolor = not na(bounce_highlight_bars) ? color.new(color.fuchsia, 30) : color.black
+    table.cell(pip_capture_table, 0, 3, "Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
     table.cell(pip_capture_table, 1, 3, str.tostring(math.round(bounce_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=bounce_pip_color)
     table.cell(pip_capture_table, 2, 3, str.tostring(bounce_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
+    table.cell(pip_capture_table, 3, 3, bounce_pip_rank, text_color=bounce_pip_rank_color, text_size=highest_pip_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "BOUNCE" ? color.lime : color.black)
 
     // Keltner row
     keltner_pip_color = keltner_avg_pip_capture > 0 ? color.green : keltner_avg_pip_capture < 0 ? color.red : color.gray
-    table.cell(pip_capture_table, 0, 4, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.orange)
+    // Highlight Keltner indicator name when signal is active (synchronized with alert condition)
+    keltner_indicator_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+    table.cell(pip_capture_table, 0, 4, "Market", text_color=color.white, text_size=size.normal, bgcolor=keltner_indicator_bgcolor)
     table.cell(pip_capture_table, 1, 4, str.tostring(math.round(keltner_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=keltner_pip_color)
     table.cell(pip_capture_table, 2, 4, str.tostring(keltner_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.orange)
+    table.cell(pip_capture_table, 3, 4, keltner_pip_rank, text_color=keltner_pip_rank_color, text_size=highest_pip_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "KELTNER" ? color.lime : color.black)
+
+    // Table name row at the bottom
+    table.cell(pip_capture_table, 0, 5, "Three Bar", text_color=color.white, text_size=size.large, bgcolor=color.black)
+    table.cell(pip_capture_table, 1, 5, "Strategy Perf", text_color=color.white, text_size=size.large, bgcolor=color.black)
+    table.cell(pip_capture_table, 2, 5, "Table", text_color=color.white, text_size=size.large, bgcolor=color.black)
+    table.cell(pip_capture_table, 3, 5, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
 // ================================== PIP CAPTURE CALCULATION ==========================================================
 // Calculate pip capture for trades held for exactly 3 bars ------------------------------------------------------------

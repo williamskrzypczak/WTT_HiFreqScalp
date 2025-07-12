@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v5.0 Beta (Signal ranking system, Keltner Channel integration, dynamic volatility adjustment, breakout detection, bars since signal tracking, and Keltner breakout performance tracking)
-// Next Version: v5.1 Beta
+// Revision: v5.5 Beta (Fixed Keltner Channel variable scope issues, added profitability table toggle with default disabled, and improved code organization)
+// Next Version: v5.6 Beta
 //
 // =====================================================================================================================
 //
@@ -18,6 +18,11 @@
 //   v4.3 - UI improvements: Enhanced status row with intuitive emojis (✅❌), removed unused code, and improved debugging capabilities
 //   v4.4Beta - Signal ranking system, Keltner Channel integration, dynamic volatility adjustment, and breakout detection
 //   v5.0 Beta - Enhanced signal tracking with bars since signal display, Keltner breakout performance tracking, and comprehensive ranking system (1-4)
+//   v5.1 Beta - Fixed bar count logic to start counting from bar AFTER signal trigger for more intuitive timing display
+//   v5.2 Beta - Enhanced pivot signal filtering to only show and alert when market is trending in the correct direction
+//   v5.3 Beta - Added pip capture table showing 3-bar pip movement analysis for SMP, Pivot, and Bounce signals with configurable position and lookback
+//   v5.4 Beta - Fixed pip capture table display issues, improved calculation logic to accumulate pip captures over time, added persistent storage for accurate statistics
+//   v5.5 Beta - Fixed Keltner Channel variable scope issues causing undeclared identifier errors, added profitability table toggle with default disabled, and improved code organization
 
 //
 // =====================================================================================================================
@@ -33,7 +38,7 @@
 // enabling automated alerting for traders. User options allow toggling the display of individual EMAs and the RSI/ADX -
 // monitor table for a tailored charting experience. -------------------------------------------------------------------
 
-indicator("WTT_HiFreqScalp_V5.0Beta", overlay=true)
+indicator("WTT_HiFreqScalp_V5.2Beta", overlay=true)
 
 // ======================================== INPUT GROUPS ===============================================================
 // Organizing inputs into logical groups for better UI experience ------------------------------------------------------
@@ -43,6 +48,7 @@ var GROUP_RSI_ADX = "RSI & ADX Monitor Settings"
 var GROUP_ALERT_TIME = "Alert Setting"
 var GROUP_MARKET_STRUCTURE = "Market Structure Detection"
 var GROUP_KELTNER = "Keltner Channel Settings"
+var GROUP_PIP_CAPTURE = "Pip Capture Table Settings"
 
 // ==================================== TRADING STYLE PRESETS ==========================================================
 // Trading style selection with optimized parameters -------------------------------------------------------------------
@@ -123,6 +129,11 @@ volatility_min_multiplier = input.float(0.8, title="Min Volatility Multiplier", 
 volatility_max_multiplier = input.float(2.5, title="Max Volatility Multiplier", minval=1.5, maxval=5.0, step=0.1, group=GROUP_KELTNER, tooltip="Maximum multiplier during high volatility")
 keltner_source = input.source(close, title="Keltner Source", group=GROUP_KELTNER, tooltip="Price source for Keltner Channel calculation")
 
+// ================================== PIP CAPTURE TABLE SETTINGS ======================================================
+// Settings for the pip capture table that shows 3-bar pip movement --------------------------------------------------
+show_pip_capture_table = input.bool(false, title="Show Profitability Table", group=GROUP_PIP_CAPTURE, tooltip="Display table showing pip capture for trades held for 3 bars")
+pip_table_position = input.string("bottom_left", title="Pip Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_PIP_CAPTURE)
+pip_capture_lookback = input.int(50, title="Pip Capture Lookback", minval=10, maxval=200, group=GROUP_PIP_CAPTURE, tooltip="Number of recent signals to track for pip capture analysis")
 
 // ================================== GLOBAL VARIABLES =================================================================
 // Initialize success tracking variables globally ----------------------------------------------------------------------
@@ -241,6 +252,44 @@ var array<int> longKeltnerBars = array.new<int>()
 var array<int> shortKeltnerBars = array.new<int>()
 var array<bool> longKeltnerResults = array.new<bool>()
 var array<bool> shortKeltnerResults = array.new<bool>()
+
+// === Pip Capture Tracking Variables ===
+// Arrays to track signal bars and their pip capture after 3 bars
+var array<int> smp_long_signal_bars = array.new<int>()
+var array<int> smp_short_signal_bars = array.new<int>()
+var array<float> smp_long_pip_capture = array.new<float>()
+var array<float> smp_short_pip_capture = array.new<float>()
+
+var array<int> pivot_long_signal_bars = array.new<int>()
+var array<int> pivot_short_signal_bars = array.new<int>()
+var array<float> pivot_long_pip_capture = array.new<float>()
+var array<float> pivot_short_pip_capture = array.new<float>()
+
+var array<int> bounce_long_signal_bars = array.new<int>()
+var array<int> bounce_short_signal_bars = array.new<int>()
+var array<float> bounce_long_pip_capture = array.new<float>()
+var array<float> bounce_short_pip_capture = array.new<float>()
+
+var array<int> keltner_long_signal_bars = array.new<int>()
+var array<int> keltner_short_signal_bars = array.new<int>()
+var array<float> keltner_long_pip_capture = array.new<float>()
+var array<float> keltner_short_pip_capture = array.new<float>()
+
+// Pip capture statistics - make these persistent
+var float smp_avg_pip_capture = 0.0
+var float pivot_avg_pip_capture = 0.0
+var float bounce_avg_pip_capture = 0.0
+var float keltner_avg_pip_capture = 0.0
+var int smp_total_captures = 0
+var int pivot_total_captures = 0
+var int bounce_total_captures = 0
+var int keltner_total_captures = 0
+
+// Accumulated pip values for persistent storage
+var float smp_accumulated_pips = 0.0
+var float pivot_accumulated_pips = 0.0
+var float bounce_accumulated_pips = 0.0
+var float keltner_accumulated_pips = 0.0
 
 // ===================================== MAIN CALCULATIONS =============================================================
 // Calculate primary indicators ----------------------------------------------------------------------------------------
@@ -414,6 +463,10 @@ if enable_volatility_adjustment
 keltner_upper = keltner_middle + (keltner_atr * dynamic_multiplier)
 keltner_lower = keltner_middle - (keltner_atr * dynamic_multiplier)
 
+// Calculate Keltner Channel crossover signals
+keltner_upper_cross_up = ta.crossover(close, keltner_upper)
+keltner_lower_cross_down = ta.crossunder(close, keltner_lower)
+
 // Determine when to show Keltner Channels based on market structure
 // Show channels when market is ranging or mixed (not trending)
 show_keltner = enable_keltner_channels and (market_structure == "RANGING" or market_structure == "MIXED")
@@ -427,9 +480,9 @@ shortSignal = ta.crossunder(ema3, middleEMA)                             // Fast
 check_volume_confirmation() =>
     not enable_volume_filter or volume > (volume_ma * volume_threshold_multiplier)
 
-// Enhanced pivot signals with cooldown and volume filters
-longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_volume_confirmation()
-shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_volume_confirmation()
+// Enhanced pivot signals with cooldown, volume filters, and trend direction alignment
+longSignalActive = longSignal and (bar_index - lastLongSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and market_structure == "TRENDING" and price_change > 0
+shortSignalActive = shortSignal and (bar_index - lastShortSignalBar >= minBarsBetweenSignals) and check_volume_confirmation() and market_structure == "TRENDING" and price_change < 0
 
 // Update signal bar tracking
 if longSignalActive
@@ -586,6 +639,11 @@ if strict_momentum_peak_long or potential_momentum_peak_long
         array.pop(longMomentumPeakPriceChange)
     if array.size(longMomentumPeakResults) > 0
         array.pop(longMomentumPeakResults)
+    
+    // Track SMP long signal for pip capture
+    array.unshift(smp_long_signal_bars, bar_index)
+    if array.size(smp_long_signal_bars) > pip_capture_lookback
+        array.pop(smp_long_signal_bars)
 
 if strict_momentum_peak_short or potential_momentum_peak_short
     array.unshift(shortMomentumPeakBars, bar_index)
@@ -598,6 +656,11 @@ if strict_momentum_peak_short or potential_momentum_peak_short
         array.pop(shortMomentumPeakPriceChange)
     if array.size(shortMomentumPeakResults) > 0
         array.pop(shortMomentumPeakResults)
+    
+    // Track SMP short signal for pip capture
+    array.unshift(smp_short_signal_bars, bar_index)
+    if array.size(smp_short_signal_bars) > pip_capture_lookback
+        array.pop(smp_short_signal_bars)
 
 // Track success rate of Syzygy Pivot signals --------------------------------------------------------------------------
 var array<int> longPivotBars = array.new<int>()
@@ -613,6 +676,11 @@ if longSignalActive
         array.pop(longPivotBars)
     if array.size(longPivotResults) > 0
         array.pop(longPivotResults)
+    
+    // Track pivot long signal for pip capture
+    array.unshift(pivot_long_signal_bars, bar_index)
+    if array.size(pivot_long_signal_bars) > pip_capture_lookback
+        array.pop(pivot_long_signal_bars)
 
 if shortSignalActive
     array.unshift(shortPivotBars, bar_index)
@@ -621,6 +689,39 @@ if shortSignalActive
         array.pop(shortPivotBars)
     if array.size(shortPivotResults) > 0
         array.pop(shortPivotResults)
+    
+    // Track pivot short signal for pip capture
+    array.unshift(pivot_short_signal_bars, bar_index)
+    if array.size(pivot_short_signal_bars) > pip_capture_lookback
+        array.pop(pivot_short_signal_bars)
+
+// Track bounce signals for pip capture
+if long_bounce_detected and not long_bounce_displayed
+    array.unshift(bounce_long_signal_bars, bar_index)
+    if array.size(bounce_long_signal_bars) > pip_capture_lookback
+        array.pop(bounce_long_signal_bars)
+
+if short_bounce_detected and not short_bounce_displayed
+    array.unshift(bounce_short_signal_bars, bar_index)
+    array.unshift(bounce_short_pip_capture, close)  // Store the signal price
+    if array.size(bounce_short_signal_bars) > pip_capture_lookback
+        array.pop(bounce_short_signal_bars)
+        array.pop(bounce_short_pip_capture)
+
+// Track Keltner breakout signals for pip capture
+if keltner_upper_cross_up
+    array.unshift(keltner_long_signal_bars, bar_index)
+    array.unshift(keltner_long_pip_capture, close)  // Store the signal price
+    if array.size(keltner_long_signal_bars) > pip_capture_lookback
+        array.pop(keltner_long_signal_bars)
+        array.pop(keltner_long_pip_capture)
+
+if keltner_lower_cross_down
+    array.unshift(keltner_short_signal_bars, bar_index)
+    array.unshift(keltner_short_pip_capture, close)  // Store the signal price
+    if array.size(keltner_short_signal_bars) > pip_capture_lookback
+        array.pop(keltner_short_signal_bars)
+        array.pop(keltner_short_pip_capture)
 
 // Only evaluate results every 5 bars for performance
 if bar_index % 5 == 0 and bar_index >= success_lookback_bars
@@ -1084,8 +1185,6 @@ plotshape(potential_momentum_peak_short, location=location.abovebar, color=#7371
 
 // ================================== KELTNER CHANNEL CROSSOVER INDICATORS ==============================================
 // Visual indicators when price crosses Keltner Channel lines -----------------------------------------------------
-keltner_upper_cross_up = ta.crossover(close, keltner_upper)
-keltner_lower_cross_down = ta.crossunder(close, keltner_lower)
 
 // Track Keltner Channel breakouts
 if keltner_upper_cross_up
@@ -1109,7 +1208,6 @@ plotshape(keltner_upper_cross_up, location=location.abovebar, color=color.green,
      title="Keltner Upper Breakout")
 plotshape(keltner_lower_cross_down, location=location.belowbar, color=color.red, style=shape.square, size=size.tiny, 
      title="Keltner Lower Breakdown")
-
 
 
 
@@ -1188,8 +1286,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     bounce_rank_color = color.white
     keltner_rank_color = color.white
     
-    // Only rank signals with sufficient data (at least 3 signals)
-    if total_signals >= 3 and pivot_total_signals >= 3 and bounce_total_signals >= 3 and keltner_total_signals >= 3
+    // Only rank signals with sufficient data (at least 2 signals)
+    if total_signals >= 2 and pivot_total_signals >= 2 and bounce_total_signals >= 2 and keltner_total_signals >= 2
         // All four signals have data - rank them 1-4
         // Create arrays to sort and rank
         var array<float> success_rates = array.new<float>()
@@ -1300,7 +1398,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         else
             keltner_rank := "4"
             keltner_rank_color := color.red
-    else if total_signals >= 3 and pivot_total_signals >= 3 and keltner_total_signals >= 3
+    else if total_signals >= 2 and pivot_total_signals >= 2 and keltner_total_signals >= 2
         // Only SMP, Pivot, and Keltner have data - rank 1-3
         if smp_success_rate >= pivot_success_rate and smp_success_rate >= keltner_success_rate
             smp_rank := "1"
@@ -1323,7 +1421,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             smp_rank_color := color.gray
             pivot_rank := "3"
             pivot_rank_color := color.orange
-    else if total_signals >= 3 and bounce_total_signals >= 3 and keltner_total_signals >= 3
+    else if total_signals >= 2 and bounce_total_signals >= 2 and keltner_total_signals >= 2
         // Only SMP, Bounce, and Keltner have data - rank 1-3
         if smp_success_rate >= bounce_success_rate and smp_success_rate >= keltner_success_rate
             smp_rank := "1"
@@ -1346,7 +1444,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             smp_rank_color := color.gray
             bounce_rank := "3"
             bounce_rank_color := color.orange
-    else if total_signals >= 3 and pivot_total_signals >= 3
+    else if total_signals >= 2 and pivot_total_signals >= 2
         // Only SMP and Pivot have data - rank 1-2
         if smp_success_rate >= pivot_success_rate
             smp_rank := "1"
@@ -1358,7 +1456,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             smp_rank_color := color.gray
             pivot_rank := "1"
             pivot_rank_color := color.yellow
-    else if total_signals >= 3 and bounce_total_signals >= 3
+    else if total_signals >= 2 and bounce_total_signals >= 2
         // Only SMP and Bounce have data - rank 1-2
         if smp_success_rate >= bounce_success_rate
             smp_rank := "1"
@@ -1370,7 +1468,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             smp_rank_color := color.gray
             bounce_rank := "1"
             bounce_rank_color := color.yellow
-    else if total_signals >= 3 and keltner_total_signals >= 3
+    else if total_signals >= 2 and keltner_total_signals >= 2
         // Only SMP and Keltner have data - rank 1-2
         if smp_success_rate >= keltner_success_rate
             smp_rank := "1"
@@ -1382,7 +1480,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             smp_rank_color := color.gray
             keltner_rank := "1"
             keltner_rank_color := color.yellow
-    else if pivot_total_signals >= 3 and bounce_total_signals >= 3
+    else if pivot_total_signals >= 2 and bounce_total_signals >= 2
         // Only Pivot and Bounce have data - rank 1-2
         if pivot_success_rate >= bounce_success_rate
             pivot_rank := "1"
@@ -1394,7 +1492,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             pivot_rank_color := color.gray
             bounce_rank := "1"
             bounce_rank_color := color.yellow
-    else if pivot_total_signals >= 3 and keltner_total_signals >= 3
+    else if pivot_total_signals >= 2 and keltner_total_signals >= 2
         // Only Pivot and Keltner have data - rank 1-2
         if pivot_success_rate >= keltner_success_rate
             pivot_rank := "1"
@@ -1406,7 +1504,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             pivot_rank_color := color.gray
             keltner_rank := "1"
             keltner_rank_color := color.yellow
-    else if bounce_total_signals >= 3 and keltner_total_signals >= 3
+    else if bounce_total_signals >= 2 and keltner_total_signals >= 2
         // Only Bounce and Keltner have data - rank 1-2
         if bounce_success_rate >= keltner_success_rate
             bounce_rank := "1"
@@ -1418,16 +1516,16 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             bounce_rank_color := color.gray
             keltner_rank := "1"
             keltner_rank_color := color.yellow
-    else if total_signals >= 3
+    else if total_signals >= 2
         smp_rank := "1"
         smp_rank_color := color.yellow
-    else if pivot_total_signals >= 3
+    else if pivot_total_signals >= 2
         pivot_rank := "1"
         pivot_rank_color := color.yellow
-    else if bounce_total_signals >= 3
+    else if bounce_total_signals >= 2
         bounce_rank := "1"
         bounce_rank_color := color.yellow
-    else if keltner_total_signals >= 3
+    else if keltner_total_signals >= 2
         keltner_rank := "1"
         keltner_rank_color := color.yellow
     else
@@ -1486,8 +1584,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     trend_stats = "Trend: " + (trend_success_rate ? str.tostring(trend_success_rate) + "%" : "N/A") + " SL:" + (trend_stop_loss_rate ? str.tostring(trend_stop_loss_rate) + "%" : "N/A")
     countertrend_stats = "CT: " + (countertrend_success_rate ? str.tostring(countertrend_success_rate) + "%" : "N/A") + " SL:" + (countertrend_stop_loss_rate ? str.tostring(countertrend_stop_loss_rate) + "%" : "N/A")
 
-    // Calculate bars since SMP signal
-    bars_since_smp = last_smp_signal_bar > 0 ? bar_index - last_smp_signal_bar : 999
+    // Calculate bars since SMP signal (start counting from bar AFTER signal)
+    bars_since_smp = last_smp_signal_bar > 0 ? bar_index - last_smp_signal_bar - 1 : 999
     smp_bars_display = bars_since_smp <= 3 ? str.tostring(bars_since_smp) : ">3"
     smp_bars_color = bars_since_smp <= 3 ? color.yellow : color.gray
     
@@ -1546,8 +1644,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     else
         pivot_trade_suggestion := "→ WAIT FOR MORE DATA"
 
-    // Calculate bars since Pivot signal
-    bars_since_pivot = last_pivot_signal_bar > 0 ? bar_index - last_pivot_signal_bar : 999
+    // Calculate bars since Pivot signal (start counting from bar AFTER signal)
+    bars_since_pivot = last_pivot_signal_bar > 0 ? bar_index - last_pivot_signal_bar - 1 : 999
     pivot_bars_display = bars_since_pivot <= 3 ? str.tostring(bars_since_pivot) : ">3"
     pivot_bars_color = bars_since_pivot <= 3 ? color.yellow : color.gray
     
@@ -1673,8 +1771,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Set pullback color based on detection status
         pullback_color = long_bounce_detected ? color.aqua : short_bounce_detected ? color.fuchsia : long_pullback_detected ? color.new(color.aqua, 50) : short_pullback_detected ? color.new(color.fuchsia, 50) : color.gray
         
-        // Calculate bars since Bounce signal
-        bars_since_bounce = last_bounce_signal_bar > 0 ? bar_index - last_bounce_signal_bar : 999
+        // Calculate bars since Bounce signal (start counting from bar AFTER signal)
+        bars_since_bounce = last_bounce_signal_bar > 0 ? bar_index - last_bounce_signal_bar - 1 : 999
         bounce_bars_display = bars_since_bounce <= 3 ? str.tostring(bars_since_bounce) : ">3"
         bounce_bars_color = bars_since_bounce <= 3 ? color.yellow : color.gray
         
@@ -1738,8 +1836,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 2, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
-    // Calculate bars since Keltner signal (for use in multiple rows)
-    bars_since_keltner = last_keltner_signal_bar > 0 ? bar_index - last_keltner_signal_bar : 999
+    // Calculate bars since Keltner signal (for use in multiple rows) (start counting from bar AFTER signal)
+    bars_since_keltner = last_keltner_signal_bar > 0 ? bar_index - last_keltner_signal_bar - 1 : 999
     keltner_bars_display = bars_since_keltner <= 3 ? str.tostring(bars_since_keltner) : ">3"
     keltner_bars_color = bars_since_keltner <= 3 ? color.yellow : color.gray
 
@@ -1828,13 +1926,248 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         table.cell(monitor_table, 2, 9, keltner_rank, text_color=keltner_rank_color, text_size=keltner_rank == "1" ? size.large : size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 9, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
 
+// ================================== PIP CAPTURE TABLE ================================================================
+// Display pip capture table showing 3-bar pip movement for each signal type ------------------------------------------
+if show_pip_capture_table
+    // Create pip capture table with position based on user selection (create once)
+    var table pip_capture_table = table.new(position = pip_table_position == "top_right" ? 
+     position.top_right : pip_table_position == "top_left" ? position.top_left : pip_table_position == "bottom_left" ? 
+     position.bottom_left : position.bottom_right, columns = 3, rows = 5, bgcolor = color.rgb(0, 0, 0, 80), 
+     border_width = 1)
 
+    // Table header
+    table.cell(pip_capture_table, 0, 0, "Signal Type", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(pip_capture_table, 1, 0, "Avg Pips (3 bars)", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    table.cell(pip_capture_table, 2, 0, "Total Trades", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+
+    // SMP row
+    smp_pip_color = smp_avg_pip_capture > 0 ? color.green : smp_avg_pip_capture < 0 ? color.red : color.gray
+    table.cell(pip_capture_table, 0, 1, "SMP", text_color=color.white, text_size=size.normal, bgcolor=color.blue)
+    table.cell(pip_capture_table, 1, 1, str.tostring(math.round(smp_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=smp_pip_color)
+    table.cell(pip_capture_table, 2, 1, str.tostring(smp_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.blue)
+
+    // Pivot row
+    pivot_pip_color = pivot_avg_pip_capture > 0 ? color.green : pivot_avg_pip_capture < 0 ? color.red : color.gray
+    table.cell(pip_capture_table, 0, 2, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.teal)
+    table.cell(pip_capture_table, 1, 2, str.tostring(math.round(pivot_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=pivot_pip_color)
+    table.cell(pip_capture_table, 2, 2, str.tostring(pivot_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.teal)
+
+    // Bounce row
+    bounce_pip_color = bounce_avg_pip_capture > 0 ? color.green : bounce_avg_pip_capture < 0 ? color.red : color.gray
+    table.cell(pip_capture_table, 0, 3, "Bounce", text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
+    table.cell(pip_capture_table, 1, 3, str.tostring(math.round(bounce_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=bounce_pip_color)
+    table.cell(pip_capture_table, 2, 3, str.tostring(bounce_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
+
+    // Keltner row
+    keltner_pip_color = keltner_avg_pip_capture > 0 ? color.green : keltner_avg_pip_capture < 0 ? color.red : color.gray
+    table.cell(pip_capture_table, 0, 4, "Market", text_color=color.white, text_size=size.normal, bgcolor=color.orange)
+    table.cell(pip_capture_table, 1, 4, str.tostring(math.round(keltner_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=keltner_pip_color)
+    table.cell(pip_capture_table, 2, 4, str.tostring(keltner_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.orange)
+
+// ================================== PIP CAPTURE CALCULATION ==========================================================
+// Calculate pip capture for trades held for exactly 3 bars ------------------------------------------------------------
+// This runs every bar to ensure we capture the 3-bar pip movement accurately
+
+// Simplified pip capture calculation - store signal prices and calculate after 3 bars
+// Function to calculate pip value based on current price
+get_pip_value(current_price) =>
+    current_price * 0.0001
+
+// Store signal prices when signals occur
+if strict_momentum_peak_long or potential_momentum_peak_long
+    array.unshift(smp_long_signal_bars, bar_index)
+    array.unshift(smp_long_pip_capture, close)  // Store the signal price
+    if array.size(smp_long_signal_bars) > pip_capture_lookback
+        array.pop(smp_long_signal_bars)
+        array.pop(smp_long_pip_capture)
+
+if strict_momentum_peak_short or potential_momentum_peak_short
+    array.unshift(smp_short_signal_bars, bar_index)
+    array.unshift(smp_short_pip_capture, close)  // Store the signal price
+    if array.size(smp_short_signal_bars) > pip_capture_lookback
+        array.pop(smp_short_signal_bars)
+        array.pop(smp_short_pip_capture)
+
+if longSignalActive
+    array.unshift(pivot_long_signal_bars, bar_index)
+    array.unshift(pivot_long_pip_capture, close)  // Store the signal price
+    if array.size(pivot_long_signal_bars) > pip_capture_lookback
+        array.pop(pivot_long_signal_bars)
+        array.pop(pivot_long_pip_capture)
+
+if shortSignalActive
+    array.unshift(pivot_short_signal_bars, bar_index)
+    array.unshift(pivot_short_pip_capture, close)  // Store the signal price
+    if array.size(pivot_short_signal_bars) > pip_capture_lookback
+        array.pop(pivot_short_signal_bars)
+        array.pop(pivot_short_pip_capture)
+
+if long_bounce_detected and not long_bounce_displayed
+    array.unshift(bounce_long_signal_bars, bar_index)
+    array.unshift(bounce_long_pip_capture, close)  // Store the signal price
+    if array.size(bounce_long_signal_bars) > pip_capture_lookback
+        array.pop(bounce_long_signal_bars)
+        array.pop(bounce_long_pip_capture)
+
+if short_bounce_detected and not short_bounce_displayed
+    array.unshift(bounce_short_signal_bars, bar_index)
+    array.unshift(bounce_short_pip_capture, close)  // Store the signal price
+    if array.size(bounce_short_signal_bars) > pip_capture_lookback
+        array.pop(bounce_short_signal_bars)
+        array.pop(bounce_short_pip_capture)
+
+// Track Keltner breakout signals for pip capture
+if keltner_upper_cross_up
+    array.unshift(keltner_long_signal_bars, bar_index)
+    array.unshift(keltner_long_pip_capture, close)  // Store the signal price
+    if array.size(keltner_long_signal_bars) > pip_capture_lookback
+        array.pop(keltner_long_signal_bars)
+        array.pop(keltner_long_pip_capture)
+
+if keltner_lower_cross_down
+    array.unshift(keltner_short_signal_bars, bar_index)
+    array.unshift(keltner_short_pip_capture, close)  // Store the signal price
+    if array.size(keltner_short_signal_bars) > pip_capture_lookback
+        array.pop(keltner_short_signal_bars)
+        array.pop(keltner_short_pip_capture)
+
+// Calculate pip captures for signals that are exactly 3 bars old
+smp_long_pips = 0.0
+smp_short_pips = 0.0
+pivot_long_pips = 0.0
+pivot_short_pips = 0.0
+bounce_long_pips = 0.0
+bounce_short_pips = 0.0
+keltner_long_pips = 0.0
+keltner_short_pips = 0.0
+
+smp_long_count = 0
+smp_short_count = 0
+pivot_long_count = 0
+pivot_short_count = 0
+bounce_long_count = 0
+bounce_short_count = 0
+keltner_long_count = 0
+keltner_short_count = 0
+
+// Calculate SMP long pip captures
+if array.size(smp_long_signal_bars) > 0 and array.size(smp_long_pip_capture) > 0
+    for i = 0 to math.min(array.size(smp_long_signal_bars) - 1, array.size(smp_long_pip_capture) - 1)
+        signal_bar = array.get(smp_long_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(smp_long_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (current_price - signal_price) / pip_value
+            smp_long_pips := smp_long_pips + pip_capture
+            smp_long_count := smp_long_count + 1
+
+// Calculate SMP short pip captures
+if array.size(smp_short_signal_bars) > 0 and array.size(smp_short_pip_capture) > 0
+    for i = 0 to math.min(array.size(smp_short_signal_bars) - 1, array.size(smp_short_pip_capture) - 1)
+        signal_bar = array.get(smp_short_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(smp_short_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (signal_price - current_price) / pip_value
+            smp_short_pips := smp_short_pips + pip_capture
+            smp_short_count := smp_short_count + 1
+
+// Calculate Pivot long pip captures
+if array.size(pivot_long_signal_bars) > 0 and array.size(pivot_long_pip_capture) > 0
+    for i = 0 to math.min(array.size(pivot_long_signal_bars) - 1, array.size(pivot_long_pip_capture) - 1)
+        signal_bar = array.get(pivot_long_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(pivot_long_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (current_price - signal_price) / pip_value
+            pivot_long_pips := pivot_long_pips + pip_capture
+            pivot_long_count := pivot_long_count + 1
+
+// Calculate Pivot short pip captures
+if array.size(pivot_short_signal_bars) > 0 and array.size(pivot_short_pip_capture) > 0
+    for i = 0 to math.min(array.size(pivot_short_signal_bars) - 1, array.size(pivot_short_pip_capture) - 1)
+        signal_bar = array.get(pivot_short_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(pivot_short_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (signal_price - current_price) / pip_value
+            pivot_short_pips := pivot_short_pips + pip_capture
+            pivot_short_count := pivot_short_count + 1
+
+// Calculate Bounce long pip captures
+if array.size(bounce_long_signal_bars) > 0 and array.size(bounce_long_pip_capture) > 0
+    for i = 0 to math.min(array.size(bounce_long_signal_bars) - 1, array.size(bounce_long_pip_capture) - 1)
+        signal_bar = array.get(bounce_long_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(bounce_long_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (current_price - signal_price) / pip_value
+            bounce_long_pips := bounce_long_pips + pip_capture
+            bounce_long_count := bounce_long_count + 1
+
+// Calculate Bounce short pip captures
+if array.size(bounce_short_signal_bars) > 0 and array.size(bounce_short_pip_capture) > 0
+    for i = 0 to math.min(array.size(bounce_short_signal_bars) - 1, array.size(bounce_short_pip_capture) - 1)
+        signal_bar = array.get(bounce_short_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(bounce_short_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (signal_price - current_price) / pip_value
+            bounce_short_pips := bounce_short_pips + pip_capture
+            bounce_short_count := bounce_short_count + 1
+
+// Calculate Keltner long pip captures
+if array.size(keltner_long_signal_bars) > 0 and array.size(keltner_long_pip_capture) > 0
+    for i = 0 to math.min(array.size(keltner_long_signal_bars) - 1, array.size(keltner_long_pip_capture) - 1)
+        signal_bar = array.get(keltner_long_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(keltner_long_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (current_price - signal_price) / pip_value
+            keltner_long_pips := keltner_long_pips + pip_capture
+            keltner_long_count := keltner_long_count + 1
+
+// Calculate Keltner short pip captures
+if array.size(keltner_short_signal_bars) > 0 and array.size(keltner_short_pip_capture) > 0
+    for i = 0 to math.min(array.size(keltner_short_signal_bars) - 1, array.size(keltner_short_pip_capture) - 1)
+        signal_bar = array.get(keltner_short_signal_bars, i)
+        if bar_index >= signal_bar + 3  // 3 or more bars after signal
+            signal_price = array.get(keltner_short_pip_capture, i)
+            current_price = close
+            pip_value = get_pip_value(signal_price)
+            pip_capture = (signal_price - current_price) / pip_value
+            keltner_short_pips := keltner_short_pips + pip_capture
+            keltner_short_count := keltner_short_count + 1
+
+// Update persistent pip capture statistics
+smp_total_captures := smp_long_count + smp_short_count
+smp_accumulated_pips := smp_long_pips + smp_short_pips
+smp_avg_pip_capture := smp_total_captures > 0 ? smp_accumulated_pips / smp_total_captures : 0.0
+
+pivot_total_captures := pivot_long_count + pivot_short_count
+pivot_accumulated_pips := pivot_long_pips + pivot_short_pips
+pivot_avg_pip_capture := pivot_total_captures > 0 ? pivot_accumulated_pips / pivot_total_captures : 0.0
+
+bounce_total_captures := bounce_long_count + bounce_short_count
+bounce_accumulated_pips := bounce_long_pips + bounce_short_pips
+bounce_avg_pip_capture := bounce_total_captures > 0 ? bounce_accumulated_pips / bounce_total_captures : 0.0
+
+keltner_total_captures := keltner_long_count + keltner_short_count
+keltner_accumulated_pips := keltner_long_pips + keltner_short_pips
+keltner_avg_pip_capture := keltner_total_captures > 0 ? keltner_accumulated_pips / keltner_total_captures : 0.0
 
 // ========================================== SYZYGY PIVOT ALERTS ======================================================
 
-// Alert condition for Syzygy Pivots -----------------------------------------------------------------------------------
-alertcondition(longSignalActive and alerts_enabled, title="Syzygy Pivot Long", message="SYZ_PIVOT_LONG Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
-alertcondition(shortSignalActive and alerts_enabled, title="Syzygy Pivot Short", message="SYZ_PIVOT_SHORT Alert \nTicker: {{ticker}}\nPrice: {{close}}\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+// Alert condition for Syzygy Pivots (only when market is trending in the correct direction) ---------------------------
+alertcondition(longSignalActive and alerts_enabled and market_structure == "TRENDING" and price_change > 0, title="Syzygy Pivot Long (Trending Up)", message="SYZ_PIVOT_LONG_TRENDING_UP Alert \nTicker: {{ticker}}\nPrice: {{close}}\nMarket: TRENDING UP\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+alertcondition(shortSignalActive and alerts_enabled and market_structure == "TRENDING" and price_change < 0, title="Syzygy Pivot Short (Trending Down)", message="SYZ_PIVOT_SHORT_TRENDING_DOWN Alert \nTicker: {{ticker}}\nPrice: {{close}}\nMarket: TRENDING DOWN\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
 
 // ================================= SYZYGY MOMENTUM PEAK ALERTS =======================================================
 // Alert condition for Syzygy Momentum Peak with enhanced descriptive message ------------------------------------------

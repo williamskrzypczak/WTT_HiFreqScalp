@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v5.8 Beta (Finalized visual enhancements for highest ranking signal prominence and improved overall code documentation)
-// Next Version: v5.9 Beta
+// Revision: v5.9 Beta (Synchronized table row highlighting with alert conditions for perfect visual feedback alignment)
+// Next Version: v6.0 Beta
 //
 // =====================================================================================================================
 //
@@ -26,6 +26,7 @@
 //   v5.6 Beta - Standardized code spacing to exactly 2 blank lines between major sections, updated alert condition comments to match exact titles, and improved overall code readability
 //   v5.7 Beta - Enhanced highest ranking signal visibility with bright lime green background highlighting and larger text size for better visual prominence
 //   v5.8 Beta - Finalized visual enhancements for highest ranking signal prominence and improved overall code documentation
+//   v5.9 Beta - Synchronized table row highlighting with alert conditions for perfect visual feedback alignment
 
 //
 // =====================================================================================================================
@@ -207,6 +208,12 @@ var int last_smp_signal_bar = 0
 var int last_pivot_signal_bar = 0
 var int last_bounce_signal_bar = 0
 var int last_keltner_signal_bar = 0
+
+// === Signal Highlight Flags (synchronized with alert conditions) ===
+var int smp_highlight_bars = na
+var int pivot_highlight_bars = na
+var int bounce_highlight_bars = na
+var int keltner_highlight_bars = na
 
 // ================================== PULLBACK DETECTION VARIABLES =====================================================
 // Variables to track pullback detection for pivot signals -------------------------------------------------------------
@@ -623,6 +630,41 @@ potential_momentum_peak_short = rsi_value >= (rsi_overbought * reversal_threshol
 
 syzygy_momentum_peak_signal = strict_momentum_peak_long or strict_momentum_peak_short or potential_momentum_peak_long or potential_momentum_peak_short
 
+// ================================== SIGNAL HIGHLIGHT FLAGS (SYNCHRONIZED WITH ALERT CONDITIONS) ======================
+// Update highlight flags based on alert conditions - ensures table highlighting matches alert logic ----------------
+
+// SMP highlight: synchronize with SMP alert condition
+if syzygy_momentum_peak_signal and alerts_enabled and enable_smp_alerts
+    smp_highlight_bars := 0
+else if not na(smp_highlight_bars)
+    smp_highlight_bars := smp_highlight_bars + 1
+    if smp_highlight_bars > 3
+        smp_highlight_bars := na
+
+// Pivot highlight: synchronize with Pivot alert condition
+if (longSignalActive and alerts_enabled and market_structure == "TRENDING" and price_change > 0) or (shortSignalActive and alerts_enabled and market_structure == "TRENDING" and price_change < 0)
+    pivot_highlight_bars := 0
+else if not na(pivot_highlight_bars)
+    pivot_highlight_bars := pivot_highlight_bars + 1
+    if pivot_highlight_bars > 3
+        pivot_highlight_bars := na
+
+// Bounce highlight: synchronize with Bounce alert conditions
+if long_bounce_alert_ready or short_bounce_alert_ready
+    bounce_highlight_bars := 0
+else if not na(bounce_highlight_bars)
+    bounce_highlight_bars := bounce_highlight_bars + 1
+    if bounce_highlight_bars > 3
+        bounce_highlight_bars := na
+
+// Keltner highlight: synchronize with Keltner alert conditions
+if (keltner_upper_cross_up and alerts_enabled) or (keltner_lower_cross_down and alerts_enabled)
+    keltner_highlight_bars := 0
+else if not na(keltner_highlight_bars)
+    keltner_highlight_bars := keltner_highlight_bars + 1
+    if keltner_highlight_bars > 3
+        keltner_highlight_bars := na
+
 // ================================== SUCCESS TRACKING (OPTIMIZED) =====================================================
 // Track success rate of Syzygy Momentum Peak signals ------------------------------------------------------------------
 var array<int> longMomentumPeakBars = array.new<int>()
@@ -713,6 +755,7 @@ if short_bounce_detected and not short_bounce_displayed
 
 // Track Keltner breakout signals for pip capture
 if keltner_upper_cross_up
+    last_keltner_signal_bar := bar_index
     array.unshift(keltner_long_signal_bars, bar_index)
     array.unshift(keltner_long_pip_capture, close)  // Store the signal price
     if array.size(keltner_long_signal_bars) > pip_capture_lookback
@@ -720,6 +763,7 @@ if keltner_upper_cross_up
         array.pop(keltner_long_pip_capture)
 
 if keltner_lower_cross_down
+    last_keltner_signal_bar := bar_index
     array.unshift(keltner_short_signal_bars, bar_index)
     array.unshift(keltner_short_pip_capture, close)  // Store the signal price
     if array.size(keltner_short_signal_bars) > pip_capture_lookback
@@ -1602,7 +1646,9 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     smp_bars_display = bars_since_smp <= 3 ? str.tostring(bars_since_smp) : ">3"
     smp_bars_color = bars_since_smp <= 3 ? color.yellow : color.gray
     
-    table.cell(monitor_table, 0, 2, "SMP", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    // Highlight SMP indicator name when signal is active (synchronized with alert condition)
+    smp_indicator_bgcolor = not na(smp_highlight_bars) ? color.new(color.blue, 30) : color.black
+    table.cell(monitor_table, 0, 2, "SMP", text_color=color.white, text_size=size.normal, bgcolor=smp_indicator_bgcolor)
     table.cell(monitor_table, 1, 2, setup_message + "\n" + trade_suggestion, text_color=setup_color == color.lime or setup_color == color.green ? color.black : color.white, bgcolor=setup_color, text_size=size.normal)
     table.cell(monitor_table, 2, 2, smp_rank, text_color=smp_rank_color, text_size=highest_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_rank_signal == "SMP" ? color.lime : color.black)
     table.cell(monitor_table, 3, 2, smp_bars_display, text_color=smp_bars_color, text_size=size.normal, bgcolor=color.black)
@@ -1663,7 +1709,9 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     pivot_bars_color = bars_since_pivot <= 3 ? color.yellow : color.gray
     
     combined_pivot_trends = (lastAlertType == "None" ? "None" : barsSinceLastAlert == 0 ? lastAlertType + "🟡" : lastAlertType) + "\n" + pivot_trade_suggestion
-    table.cell(monitor_table, 0, 4, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+    // Highlight Pivot indicator name when signal is active (synchronized with alert condition)
+    pivot_indicator_bgcolor = not na(pivot_highlight_bars) ? color.new(color.teal, 30) : color.black
+    table.cell(monitor_table, 0, 4, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=pivot_indicator_bgcolor)
     table.cell(monitor_table, 1, 4, combined_pivot_trends, text_color=color.white, bgcolor=lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray, text_size=size.normal)
     table.cell(monitor_table, 2, 4, pivot_rank, text_color=pivot_rank_color, text_size=highest_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_rank_signal == "PIVOT" ? color.lime : color.black)
     table.cell(monitor_table, 3, 4, pivot_bars_display, text_color=pivot_bars_color, text_size=size.normal, bgcolor=color.black)
@@ -1789,7 +1837,9 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         bounce_bars_display = bars_since_bounce <= 3 ? str.tostring(bars_since_bounce) : ">3"
         bounce_bars_color = bars_since_bounce <= 3 ? color.yellow : color.gray
         
-        table.cell(monitor_table, 0, 6, "Pivot Bounce", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        // Highlight Bounce indicator name when signal is active (synchronized with alert condition)
+        bounce_indicator_bgcolor = not na(bounce_highlight_bars) ? color.new(color.fuchsia, 30) : color.black
+        table.cell(monitor_table, 0, 6, "Pivot Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
         table.cell(monitor_table, 1, 6, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
         table.cell(monitor_table, 2, 6, bounce_rank, text_color=bounce_rank_color, text_size=highest_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_rank_signal == "BOUNCE" ? color.lime : color.black)
         table.cell(monitor_table, 3, 6, bounce_bars_display, text_color=bounce_bars_color, text_size=size.normal, bgcolor=color.black)
@@ -1904,7 +1954,14 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         keltner_countertrend_stats = "Trend: " + (keltner_countertrend_success_rate ? str.tostring(keltner_countertrend_success_rate) + "%" : "N/A") + " SL:" + (keltner_countertrend_stop_loss_rate ? str.tostring(keltner_countertrend_stop_loss_rate) + "%" : "N/A")
         keltner_performance_display = keltner_trend_stats + " | " + keltner_countertrend_stats + "\n" + keltner_trade_suggestion
         
-        table.cell(monitor_table, 0, 8, "Keltner Breakout", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        // Calculate bars since Keltner signal (start counting from bar AFTER signal)
+        bars_since_keltner = last_keltner_signal_bar > 0 ? bar_index - last_keltner_signal_bar - 1 : 999
+        keltner_bars_display = bars_since_keltner <= 3 ? str.tostring(bars_since_keltner) : ">3"
+        keltner_bars_color = bars_since_keltner <= 3 ? color.yellow : color.gray
+        
+        // Highlight Keltner indicator name when signal is active (within 3 bars)
+        keltner_indicator_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+        table.cell(monitor_table, 0, 8, "Keltner Breakout", text_color=color.white, text_size=size.normal, bgcolor=keltner_indicator_bgcolor)
         table.cell(monitor_table, 1, 8, keltner_performance_display, text_color=color.white, bgcolor=color.orange, text_size=size.normal)
         table.cell(monitor_table, 2, 8, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 3, 8, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
@@ -1934,7 +1991,9 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
                 trend_direction := "DOWN"
         
         market_structure_display = (market_structure == "TRENDING" ? "TREND" : market_structure == "RANGING" ? "RANGE" : "MIXED") + " " + trend_direction
-        table.cell(monitor_table, 0, 9, "Current Market", text_color=color.white, text_size=size.normal, bgcolor=color.black)
+        // Highlight Current Market row when Keltner breakout signal is active (synchronized with alert condition)
+        current_market_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+        table.cell(monitor_table, 0, 9, "Current Market", text_color=color.white, text_size=size.normal, bgcolor=current_market_bgcolor)
         table.cell(monitor_table, 1, 9, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
         table.cell(monitor_table, 2, 9, keltner_rank, text_color=keltner_rank_color, text_size=highest_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_rank_signal == "KELTNER" ? color.lime : color.black)
         table.cell(monitor_table, 3, 9, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
@@ -2031,6 +2090,7 @@ if short_bounce_detected and not short_bounce_displayed
 
 // Track Keltner breakout signals for pip capture
 if keltner_upper_cross_up
+    last_keltner_signal_bar := bar_index
     array.unshift(keltner_long_signal_bars, bar_index)
     array.unshift(keltner_long_pip_capture, close)  // Store the signal price
     if array.size(keltner_long_signal_bars) > pip_capture_lookback
@@ -2038,6 +2098,7 @@ if keltner_upper_cross_up
         array.pop(keltner_long_pip_capture)
 
 if keltner_lower_cross_down
+    last_keltner_signal_bar := bar_index
     array.unshift(keltner_short_signal_bars, bar_index)
     array.unshift(keltner_short_pip_capture, close)  // Store the signal price
     if array.size(keltner_short_signal_bars) > pip_capture_lookback
@@ -2201,3 +2262,4 @@ alertcondition(keltner_upper_cross_up and alerts_enabled, title="Syzygy Range Br
 
 alertcondition(keltner_lower_cross_down and alerts_enabled, title="Syzygy Range Breakout Bearish", 
      message="SYZYGY_RANGE_BREAKOUT_BEARISH\nTicker: {{ticker}}\nPrice: {{close}}\nDirection: BEARISH\nChart: https://www.tradingview.com/chart/?symbol={{ticker}}")
+

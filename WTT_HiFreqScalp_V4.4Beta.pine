@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v5.7 Beta (Enhanced highest ranking signal visibility with bright lime green background highlighting and larger text size for better visual prominence)
-// Next Version: v5.8 Beta
+// Revision: v5.8 Beta (Finalized visual enhancements for highest ranking signal prominence and improved overall code documentation)
+// Next Version: v5.9 Beta
 //
 // =====================================================================================================================
 //
@@ -25,6 +25,7 @@
 //   v5.5 Beta - Fixed Keltner Channel variable scope issues causing undeclared identifier errors, added profitability table toggle with default disabled, and improved code organization
 //   v5.6 Beta - Standardized code spacing to exactly 2 blank lines between major sections, updated alert condition comments to match exact titles, and improved overall code readability
 //   v5.7 Beta - Enhanced highest ranking signal visibility with bright lime green background highlighting and larger text size for better visual prominence
+//   v5.8 Beta - Finalized visual enhancements for highest ranking signal prominence and improved overall code documentation
 
 //
 // =====================================================================================================================

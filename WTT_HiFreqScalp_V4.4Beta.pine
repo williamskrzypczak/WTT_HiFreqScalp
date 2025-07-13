@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v6.0 Beta (Enhanced Three Bar Strategy Performance Table with ranking system and synchronized row highlighting)
-// Next Version: v6.1 Beta
+// Revision: v6.3 Beta (Fixed top strategy highlighting in both tables with simpler rank "1" detection)
+// Next Version: v6.4 Beta
 //
 // =====================================================================================================================
 //
@@ -30,6 +30,7 @@
 //   v6.0 Beta - Enhanced Three Bar Strategy Performance Table with ranking system based on pip capture performance, synchronized row highlighting, and improved table organization
 //   v6.1 Beta - Fixed undeclared identifier error for bar count variables in Three Bar Strategy Performance Table
 //   v6.2 Beta - Added toggle to hide performance columns (average pips and total trades) in Three Bar Strategy Performance Table, default set to false
+//   v6.3 Beta - Fixed top strategy highlighting in both tables with simpler rank "1" detection for better visual prominence
 
 //
 // =====================================================================================================================
@@ -1338,8 +1339,8 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     keltner_rank_color = color.white
     
     // Simple ranking system - rank signals 1-4 based on success rates
-    // Only rank signals with at least 2 trades for reliability
-    if total_signals >= 2 and pivot_total_signals >= 2 and bounce_total_signals >= 2 and keltner_total_signals >= 2
+    // Rank signals that have at least 2 trades for reliability
+    if total_signals >= 2 or pivot_total_signals >= 2 or bounce_total_signals >= 2 or keltner_total_signals >= 2
         // All four signals have data - simple ranking by success rate
         if smp_success_rate >= pivot_success_rate and smp_success_rate >= bounce_success_rate and smp_success_rate >= keltner_success_rate
             smp_rank := "1"
@@ -1517,21 +1518,10 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         keltner_rank := "-"
 
     // Determine which signal has the highest rank (lowest number = highest rank)
-    var string highest_rank_signal = ""
-    var float highest_rank_value = 999.0
+    string highest_rank_signal = ""
+    float highest_rank_value = 999.0
     
-    if smp_rank != "-" and str.tonumber(smp_rank) < highest_rank_value
-        highest_rank_value := str.tonumber(smp_rank)
-        highest_rank_signal := "SMP"
-    if pivot_rank != "-" and str.tonumber(pivot_rank) < highest_rank_value
-        highest_rank_value := str.tonumber(pivot_rank)
-        highest_rank_signal := "PIVOT"
-    if bounce_rank != "-" and str.tonumber(bounce_rank) < highest_rank_value
-        highest_rank_value := str.tonumber(bounce_rank)
-        highest_rank_signal := "BOUNCE"
-    if keltner_rank != "-" and str.tonumber(keltner_rank) < highest_rank_value
-        highest_rank_value := str.tonumber(keltner_rank)
-        highest_rank_signal := "KELTNER"
+    // Simple approach: Any rank "1" gets highlighted with larger text and bright background
 
     // Syzygy Momentum Peak (SMP) Alerts row
     [setup_message, setup_color] = get_optimal_setup()
@@ -1592,7 +1582,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     smp_indicator_bgcolor = not na(smp_highlight_bars) ? color.new(color.blue, 30) : color.black
     table.cell(monitor_table, 0, 2, "SMP", text_color=color.white, text_size=size.normal, bgcolor=smp_indicator_bgcolor)
     table.cell(monitor_table, 1, 2, setup_message + "\n" + trade_suggestion, text_color=setup_color == color.lime or setup_color == color.green ? color.black : color.white, bgcolor=setup_color, text_size=size.normal)
-    table.cell(monitor_table, 2, 2, smp_rank, text_color=smp_rank_color, text_size=highest_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_rank_signal == "SMP" ? color.lime : color.black)
+    table.cell(monitor_table, 2, 2, smp_rank, text_color=smp_rank_color, text_size=smp_rank == "1" ? size.large : size.normal, bgcolor=smp_rank == "1" ? color.orange : color.black)
     table.cell(monitor_table, 3, 2, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 4, 2, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
@@ -1657,7 +1647,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     pivot_indicator_bgcolor = not na(pivot_highlight_bars) ? color.new(color.teal, 30) : color.black
     table.cell(monitor_table, 0, 4, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=pivot_indicator_bgcolor)
     table.cell(monitor_table, 1, 4, combined_pivot_trends, text_color=color.white, bgcolor=lastAlertType == "LONG" ? color.teal : lastAlertType == "SHORT" ? color.maroon : color.gray, text_size=size.normal)
-    table.cell(monitor_table, 2, 4, pivot_rank, text_color=pivot_rank_color, text_size=highest_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_rank_signal == "PIVOT" ? color.lime : color.black)
+    table.cell(monitor_table, 2, 4, pivot_rank, text_color=pivot_rank_color, text_size=pivot_rank == "1" ? size.large : size.normal, bgcolor=pivot_rank == "1" ? color.orange : color.black)
     table.cell(monitor_table, 3, 4, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
     table.cell(monitor_table, 4, 4, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
@@ -1787,7 +1777,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         bounce_indicator_bgcolor = not na(bounce_highlight_bars) ? color.new(color.fuchsia, 30) : color.black
         table.cell(monitor_table, 0, 6, "Pivot Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
         table.cell(monitor_table, 1, 6, pullback_combined_info, text_color=color.white, bgcolor=pullback_color, text_size=size.normal)
-        table.cell(monitor_table, 2, 6, bounce_rank, text_color=bounce_rank_color, text_size=highest_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_rank_signal == "BOUNCE" ? color.lime : color.black)
+        table.cell(monitor_table, 2, 6, bounce_rank, text_color=bounce_rank_color, text_size=bounce_rank == "1" ? size.large : size.normal, bgcolor=bounce_rank == "1" ? color.orange : color.black)
         table.cell(monitor_table, 3, 6, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 4, 6, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
@@ -1944,7 +1934,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         current_market_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
         table.cell(monitor_table, 0, 9, "Current Market", text_color=color.white, text_size=size.normal, bgcolor=current_market_bgcolor)
         table.cell(monitor_table, 1, 9, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
-        table.cell(monitor_table, 2, 9, keltner_rank, text_color=keltner_rank_color, text_size=highest_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_rank_signal == "KELTNER" ? color.lime : color.black)
+        table.cell(monitor_table, 2, 9, keltner_rank, text_color=keltner_rank_color, text_size=keltner_rank == "1" ? size.large : size.normal, bgcolor=keltner_rank == "1" ? color.orange : color.black)
         table.cell(monitor_table, 3, 9, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 4, 9, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
@@ -2163,21 +2153,22 @@ if show_pip_capture_table
         keltner_pip_rank := "-"
 
     // Determine which signal has the highest pip capture rank (lowest number = highest rank)
-    var string highest_pip_rank_signal = ""
-    var float highest_pip_rank_value = 999.0
+    string highest_pip_rank_signal = ""
+    float highest_pip_rank_value = 999.0
     
-    if smp_pip_rank != "-" and str.tonumber(smp_pip_rank) < highest_pip_rank_value
-        highest_pip_rank_value := str.tonumber(smp_pip_rank)
-        highest_pip_rank_signal := "SMP"
-    if pivot_pip_rank != "-" and str.tonumber(pivot_pip_rank) < highest_pip_rank_value
-        highest_pip_rank_value := str.tonumber(pivot_pip_rank)
-        highest_pip_rank_signal := "PIVOT"
-    if bounce_pip_rank != "-" and str.tonumber(bounce_pip_rank) < highest_pip_rank_value
-        highest_pip_rank_value := str.tonumber(bounce_pip_rank)
-        highest_pip_rank_signal := "BOUNCE"
-    if keltner_pip_rank != "-" and str.tonumber(keltner_pip_rank) < highest_pip_rank_value
-        highest_pip_rank_value := str.tonumber(keltner_pip_rank)
-        highest_pip_rank_signal := "KELTNER"
+    // Check each pip rank and find the lowest number (highest rank)
+    if smp_pip_rank != "-" and smp_pip_rank != "" and str.tonumber(smp_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value = str.tonumber(smp_pip_rank)
+        highest_pip_rank_signal = "SMP"
+    if pivot_pip_rank != "-" and pivot_pip_rank != "" and str.tonumber(pivot_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value = str.tonumber(pivot_pip_rank)
+        highest_pip_rank_signal = "PIVOT"
+    if bounce_pip_rank != "-" and bounce_pip_rank != "" and str.tonumber(bounce_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value = str.tonumber(bounce_pip_rank)
+        highest_pip_rank_signal = "BOUNCE"
+    if keltner_pip_rank != "-" and keltner_pip_rank != "" and str.tonumber(keltner_pip_rank) < highest_pip_rank_value
+        highest_pip_rank_value = str.tonumber(keltner_pip_rank)
+        highest_pip_rank_signal = "KELTNER"
     // Create three bar strategy performance table with position based on user selection (create once)
     var table pip_capture_table = table.new(position = pip_table_position == "top_right" ? 
      position.top_right : pip_table_position == "top_left" ? position.top_left : pip_table_position == "bottom_left" ? 
@@ -2203,10 +2194,10 @@ if show_pip_capture_table
     if show_performance_columns
         table.cell(pip_capture_table, 1, 1, str.tostring(math.round(smp_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=smp_pip_color)
         table.cell(pip_capture_table, 2, 1, str.tostring(smp_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.blue)
-        table.cell(pip_capture_table, 3, 1, smp_pip_rank, text_color=smp_pip_rank_color, text_size=highest_pip_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "SMP" ? color.lime : color.black)
+        table.cell(pip_capture_table, 3, 1, smp_pip_rank, text_color=smp_pip_rank_color, text_size=smp_pip_rank == "1" ? size.large : size.normal, bgcolor=smp_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 4, 1, smp_bars_display, text_color=smp_bars_color, text_size=size.normal, bgcolor=color.black)
     else
-        table.cell(pip_capture_table, 1, 1, smp_pip_rank, text_color=smp_pip_rank_color, text_size=highest_pip_rank_signal == "SMP" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "SMP" ? color.lime : color.black)
+        table.cell(pip_capture_table, 1, 1, smp_pip_rank, text_color=smp_pip_rank_color, text_size=smp_pip_rank == "1" ? size.large : size.normal, bgcolor=smp_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 2, 1, smp_bars_display, text_color=smp_bars_color, text_size=size.normal, bgcolor=color.black)
 
     // Pivot row
@@ -2217,10 +2208,10 @@ if show_pip_capture_table
     if show_performance_columns
         table.cell(pip_capture_table, 1, 2, str.tostring(math.round(pivot_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=pivot_pip_color)
         table.cell(pip_capture_table, 2, 2, str.tostring(pivot_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.teal)
-        table.cell(pip_capture_table, 3, 2, pivot_pip_rank, text_color=pivot_pip_rank_color, text_size=highest_pip_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "PIVOT" ? color.lime : color.black)
+        table.cell(pip_capture_table, 3, 2, pivot_pip_rank, text_color=pivot_pip_rank_color, text_size=pivot_pip_rank == "1" ? size.large : size.normal, bgcolor=pivot_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 4, 2, pivot_bars_display, text_color=pivot_bars_color, text_size=size.normal, bgcolor=color.black)
     else
-        table.cell(pip_capture_table, 1, 2, pivot_pip_rank, text_color=pivot_pip_rank_color, text_size=highest_pip_rank_signal == "PIVOT" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "PIVOT" ? color.lime : color.black)
+        table.cell(pip_capture_table, 1, 2, pivot_pip_rank, text_color=pivot_pip_rank_color, text_size=pivot_pip_rank == "1" ? size.large : size.normal, bgcolor=pivot_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 2, 2, pivot_bars_display, text_color=pivot_bars_color, text_size=size.normal, bgcolor=color.black)
 
     // Bounce row
@@ -2231,10 +2222,10 @@ if show_pip_capture_table
     if show_performance_columns
         table.cell(pip_capture_table, 1, 3, str.tostring(math.round(bounce_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=bounce_pip_color)
         table.cell(pip_capture_table, 2, 3, str.tostring(bounce_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
-        table.cell(pip_capture_table, 3, 3, bounce_pip_rank, text_color=bounce_pip_rank_color, text_size=highest_pip_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "BOUNCE" ? color.lime : color.black)
+        table.cell(pip_capture_table, 3, 3, bounce_pip_rank, text_color=bounce_pip_rank_color, text_size=bounce_pip_rank == "1" ? size.large : size.normal, bgcolor=bounce_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 4, 3, bounce_bars_display, text_color=bounce_bars_color, text_size=size.normal, bgcolor=color.black)
     else
-        table.cell(pip_capture_table, 1, 3, bounce_pip_rank, text_color=bounce_pip_rank_color, text_size=highest_pip_rank_signal == "BOUNCE" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "BOUNCE" ? color.lime : color.black)
+        table.cell(pip_capture_table, 1, 3, bounce_pip_rank, text_color=bounce_pip_rank_color, text_size=bounce_pip_rank == "1" ? size.large : size.normal, bgcolor=bounce_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 2, 3, bounce_bars_display, text_color=bounce_bars_color, text_size=size.normal, bgcolor=color.black)
 
     // Keltner row
@@ -2245,10 +2236,10 @@ if show_pip_capture_table
     if show_performance_columns
         table.cell(pip_capture_table, 1, 4, str.tostring(math.round(keltner_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=keltner_pip_color)
         table.cell(pip_capture_table, 2, 4, str.tostring(keltner_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.orange)
-        table.cell(pip_capture_table, 3, 4, keltner_pip_rank, text_color=keltner_pip_rank_color, text_size=highest_pip_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "KELTNER" ? color.lime : color.black)
+        table.cell(pip_capture_table, 3, 4, keltner_pip_rank, text_color=keltner_pip_rank_color, text_size=keltner_pip_rank == "1" ? size.large : size.normal, bgcolor=keltner_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 4, 4, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
     else
-        table.cell(pip_capture_table, 1, 4, keltner_pip_rank, text_color=keltner_pip_rank_color, text_size=highest_pip_rank_signal == "KELTNER" ? size.large : size.normal, bgcolor=highest_pip_rank_signal == "KELTNER" ? color.lime : color.black)
+        table.cell(pip_capture_table, 1, 4, keltner_pip_rank, text_color=keltner_pip_rank_color, text_size=keltner_pip_rank == "1" ? size.large : size.normal, bgcolor=keltner_pip_rank == "1" ? color.orange : color.black)
         table.cell(pip_capture_table, 2, 4, keltner_bars_display, text_color=keltner_bars_color, text_size=size.normal, bgcolor=color.black)
 
     // Table name row at the bottom

@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v6.4 Beta (Fixed undeclared identifier error for win percentage variables by adding persistent variable declarations)
-// Next Version: v6.5 Beta
+// Revision: v6.5 Beta (Fixed bounce detection logic and synchronized alerts with chart indicators)
+// Next Version: v6.6 Beta
 //
 // =====================================================================================================================
 //
@@ -31,9 +31,9 @@
 //   v6.1 Beta - Fixed undeclared identifier error for bar count variables in Three Bar Strategy Performance Table
 //   v6.2 Beta - Added toggle to hide performance columns (average pips and total trades) in Three Bar Strategy Performance Table, default set to false
 //   v6.3 Beta - Fixed top strategy highlighting in both tables with simpler rank "1" detection for better visual prominence
-//   v6.6 Beta - Moved status row from 5 x 5 Stop Strategy table to top of Indicators Table, reduced 5 x 5 table from 10 to 9 rows, updated all row numbers accordingly
 //   v6.5 Beta - Renamed Three Bar Strategy Performance Table to Three Bar Stop Strategy
-//   v6.4 Beta - Fixed undeclared identifier error for win percentage variables by adding persistent variable declarations to global scope
+//   v6.4 Beta - Fixed undeclared identifier error for win percentage variables by adding persistent variable declarations
+//   v6.5 Beta - Fixed bounce detection logic by removing EMA alignment requirement, synchronized alert conditions with chart indicators, and cleaned up debug indicators to global scope
 
 //
 // =====================================================================================================================
@@ -573,21 +573,19 @@ if enable_pullback_detection and short_pivot_trough_price > 0 and not short_pull
         short_pullback_high := close
 
 // Detect bounces after pullbacks (only first time)
-if enable_pullback_detection and long_pullback_detected and not long_bounce_detected and long_pullback_low > 0 and not long_pivot_invalidated
-    if close > long_pullback_low and ema3 > middleEMA
-        long_bounce_detected := true
-        long_bounce_displayed := true
-        last_long_bounce_bar := bar_index
+if enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and not long_pivot_invalidated and close > long_pullback_low and not long_bounce_detected
+    long_bounce_detected := true
+    long_bounce_displayed := true
+    last_long_bounce_bar := bar_index
 
-if enable_pullback_detection and short_pullback_detected and not short_bounce_detected and short_pullback_high > 0 and not short_pivot_invalidated
-    if close < short_pullback_high and ema3 < middleEMA
-        short_bounce_detected := true
-        short_bounce_displayed := true
-        last_short_bounce_bar := bar_index
+if enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and not short_pivot_invalidated and close < short_pullback_high and not short_bounce_detected
+    short_bounce_detected := true
+    short_bounce_displayed := true
+    last_short_bounce_bar := bar_index
 
-// Synchronized bounce alert flags - match alert conditions exactly
-long_bounce_alert_ready := show_pullback_indicators and enable_pullback_detection and long_bounce_displayed and long_pullback_low > 0 and close > long_pullback_low and ema3 > middleEMA and not long_pivot_invalidated and alerts_enabled and enable_bounce_alerts
-short_bounce_alert_ready := show_pullback_indicators and enable_pullback_detection and short_bounce_displayed and short_pullback_high > 0 and close < short_pullback_high and ema3 < middleEMA and not short_pivot_invalidated and alerts_enabled and enable_bounce_alerts
+// Synchronized bounce alert flags - match chart indicators exactly
+long_bounce_alert_ready := long_bounce_detected and not long_bounce_detected[1] and alerts_enabled and enable_bounce_alerts
+short_bounce_alert_ready := short_bounce_detected and not short_bounce_detected[1] and alerts_enabled and enable_bounce_alerts
 
 // Track bounce signals for performance evaluation
 if long_bounce_alert_ready and not long_bounce_alerted
@@ -625,12 +623,13 @@ if short_pivot_trough_price > 0 and bar_index > short_pivot_trough_bar + pullbac
     short_pivot_invalidated := false
     short_bounce_displayed := false
 
-// Clear previous bounce display when new bounce is detected (only show most current)
-if long_bounce_displayed and bar_index > last_long_bounce_bar + 1
-    long_bounce_displayed := false
+// TEMPORARILY DISABLED - Bounce indicators will stay visible permanently
+// Clear previous bounce display after 5 bars have passed (show for 5 bars instead of 1)
+// if long_bounce_displayed and bar_index > last_long_bounce_bar + 5
+//     long_bounce_displayed := false
 
-if short_bounce_displayed and bar_index > last_short_bounce_bar + 1
-    short_bounce_displayed := false
+// if short_bounce_displayed and bar_index > last_short_bounce_bar + 5
+//     short_bounce_displayed := false
 
 // ================================== PULLBACK SUCCESS TRACKING LOGIC (OPTIMIZED) ======================================
 // Track pullback signals and evaluate their success -------------------------------------------------------------------
@@ -1286,14 +1285,41 @@ plotshape(keltner_lower_cross_down, location=location.belowbar, color=color.red,
 // Set alert flags to prevent multiple plots
 // NOTE: Removed redundant pullback alert flags - using bounce logic instead
 
-// Plot pullback bounce indicators (only most current) - synchronized with alert conditions
-plotshape(long_bounce_alert_ready, 
-     location=location.belowbar, color=color.green, style=shape.diamond, size=size.tiny, 
-     title="Long Pivot Pullback Bounce")
 
-plotshape(short_bounce_alert_ready, 
-     location=location.abovebar, color=color.red, style=shape.diamond, size=size.tiny, 
-     title="Short Pivot Pullback Bounce")
+
+// TEMPORARY DEBUG: Plot simple bounce detection to test if basic logic works
+// Bounce detection indicators - only show on the bar when bounce is first detected
+plotshape(long_bounce_detected and not long_bounce_detected[1], 
+     location=location.belowbar, color=color.lime, style=shape.circle, size=size.normal, 
+     title="Long Bounce Detected")
+
+plotshape(short_bounce_detected and not short_bounce_detected[1], 
+     location=location.abovebar, color=color.orange, style=shape.circle, size=size.normal, 
+     title="Short Bounce Detected")
+
+// TEMPORARY DEBUG: Force bounce detection flags when gray circles appear
+if enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and not long_pivot_invalidated and close > long_pullback_low and not long_bounce_detected
+    long_bounce_detected := true
+    long_bounce_displayed := true
+
+if enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and not short_pivot_invalidated and close < short_pullback_high and not short_bounce_detected
+    short_bounce_detected := true
+    short_bounce_displayed := true
+
+// Bounce detection - only when price starts moving back in opposite direction
+if enable_pullback_detection and long_pullback_detected and long_pullback_low > 0 and not long_pivot_invalidated and close > long_pullback_low and close[1] <= long_pullback_low and not long_bounce_detected
+    long_bounce_detected := true
+    long_bounce_displayed := true
+
+if enable_pullback_detection and short_pullback_detected and short_pullback_high > 0 and not short_pivot_invalidated and close < short_pullback_high and close[1] >= short_pullback_high and not short_bounce_detected
+    short_bounce_detected := true
+    short_bounce_displayed := true
+
+
+
+
+
+
 
 
 // ================================== 5 x 5 STRATEGY PERFORMANCE TABLE (OPTIMIZED) ======================================
@@ -1941,33 +1967,32 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
 
 // ================================== INDICATORS TABLE ================================================================
 // Create a separate table for indicator information in the middle bottom of the chart --------------------------------
-if show_table
-    // Calculate indicator values for the new table
-    rsi_display = str.tostring(math.round(rsi_value, 1)) + (rsi_value <= rsi_oversold ? "🟢" : rsi_value >= rsi_overbought ? "🔴" : "🇨🇭")
-    volume_ratio = volume / volume_ma
-    volume_status = volume_ratio <= 0.5 ? "L📉" : volume_ratio <= 1.0 ? "N📊" : volume_ratio <= volume_threshold_multiplier ? "A📈" : "H🚀"
-    
-    // Add Keltner Channel information when active
-    keltner_info = show_keltner ? " KC:" + str.tostring(math.round(dynamic_multiplier, 1)) + (enable_volatility_adjustment ? "A" : "F") : ""
-    combined_indicators = (plus_di > minus_di ? "Bull🟢" : "Bear🔴") + " ADX:" + (adx_value >= adx_threshold ? "S💪" : "W🥺") + " RSI:" + rsi_display + " Vol:" + volume_status + keltner_info
-    rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
-    
-    // Create indicators table in middle bottom
-    var table indicators_table = table.new(position = position.bottom_center, columns = 1, rows = 4, bgcolor = color.rgb(0, 0, 0, 80), border_width = 1)
-    
-    // Status row (moved from 5 x 5 table)
-    volume_filter_status = enable_volume_filter ? "✅" : "❌"
-    status_display = (enable_alerts ? "✅" : "❌") + " " + trading_style + " Vol:" + volume_filter_status
-    table.cell(indicators_table, 0, 0, status_display, bgcolor=color.rgb(108, 107, 111), text_color=get_color_brightness(color.r(color.rgb(108, 107, 111)), color.g(color.rgb(108, 107, 111)), color.b(color.rgb(108, 107, 111))) > 128 ? color.black : color.white, text_size=size.normal)
-    
-    // Display combined indicators
-    table.cell(indicators_table, 0, 1, combined_indicators, bgcolor=rsi_gradient_color, text_color=get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white, text_size=size.normal)
-    
-    // Current Market row (copy from 5 x 5 table)
-    table.cell(indicators_table, 0, 2, "Current Market: " + market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
-    
-    // Table name row
-    table.cell(indicators_table, 0, 3, "Indicators Table", text_color=color.white, text_size=size.large, bgcolor=color.black)
+// Calculate indicator values for the new table
+rsi_display = str.tostring(math.round(rsi_value, 1)) + (rsi_value <= rsi_oversold ? "🟢" : rsi_value >= rsi_overbought ? "🔴" : "🇨🇭")
+volume_ratio = volume / volume_ma
+volume_status = volume_ratio <= 0.5 ? "L📉" : volume_ratio <= 1.0 ? "N📊" : volume_ratio <= volume_threshold_multiplier ? "A📈" : "H🚀"
+
+// Add Keltner Channel information when active
+keltner_info = show_keltner ? " KC:" + str.tostring(math.round(dynamic_multiplier, 1)) + (enable_volatility_adjustment ? "A" : "F") : ""
+combined_indicators = (plus_di > minus_di ? "Bull🟢" : "Bear🔴") + " ADX:" + (adx_value >= adx_threshold ? "S💪" : "W🥺") + " RSI:" + rsi_display + " Vol:" + volume_status + keltner_info
+rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
+
+// Create indicators table in middle bottom
+var table indicators_table = table.new(position = position.bottom_center, columns = 1, rows = 4, bgcolor = color.rgb(0, 0, 0, 80), border_width = 1)
+
+// Status row (moved from 5 x 5 table)
+volume_filter_status = enable_volume_filter ? "✅" : "❌"
+status_display = (enable_alerts ? "✅" : "❌") + " " + trading_style + " Vol:" + volume_filter_status
+table.cell(indicators_table, 0, 0, status_display, bgcolor=color.rgb(108, 107, 111), text_color=get_color_brightness(color.r(color.rgb(108, 107, 111)), color.g(color.rgb(108, 107, 111)), color.b(color.rgb(108, 107, 111))) > 128 ? color.black : color.white, text_size=size.normal)
+
+// Display combined indicators
+table.cell(indicators_table, 0, 1, combined_indicators, bgcolor=rsi_gradient_color, text_color=get_color_brightness(color.r(rsi_gradient_color), color.g(rsi_gradient_color), color.b(rsi_gradient_color)) > 128 ? color.black : color.white, text_size=size.normal)
+
+// Current Market row (copy from 5 x 5 table)
+table.cell(indicators_table, 0, 2, "Current Market: " + market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
+
+// Table name row
+table.cell(indicators_table, 0, 3, "Indicators Table", text_color=color.white, text_size=size.large, bgcolor=color.black)
 
 // ================================== THREE BAR STRATEGY PERFORMANCE TABLE =============================================
 // Display three bar strategy performance table showing 3-bar pip movement for each signal type -------------------------

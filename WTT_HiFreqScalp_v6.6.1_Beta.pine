@@ -37,6 +37,7 @@
 //   v6.6 Beta - Fixed Three Bar Stop Strategy table ranking system by replacing complex loops with optimized direct comparisons, eliminating runtime timeout errors to global scope
 //   v6.6.1 Beta - Scanned for and removed unused/commented-out code and temporary debug code. No functional changes.
 //   v6.6.2 Beta - Fixed syntax error by adding missing closing brace for if show_pip_capture_table block.
+//   v6.6.3 Beta - Removed KC display from indicators table and replaced Current Market row with Keltner Alert row in 5x5 stop strategy table.
 
 //
 // =====================================================================================================================
@@ -1952,13 +1953,15 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     // Signal Ranking row - shows which signal type is performing best
     // NOTE: Ranking now integrated into column 2 of each signal row
 
-    // Market Structure row - only show if enabled
+    // Keltner Breakout Alert row - only show if enabled
     if show_market_structure
-        // Highlight Current Market row when Keltner breakout signal is active (synchronized with alert condition)
-        current_market_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+        // Highlight Keltner Breakout Alert row when Keltner breakout signal is active (synchronized with alert condition)
+        keltner_alert_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+        keltner_alert_status = keltner_upper_cross_up ? "BULLISH" : keltner_lower_cross_down ? "BEARISH" : "INACTIVE"
+        keltner_alert_color = keltner_upper_cross_up ? color.green : keltner_lower_cross_down ? color.red : color.gray
         table.cell(monitor_table, 0, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-        table.cell(monitor_table, 1, 7, "Current Market", text_color=color.white, text_size=size.normal, bgcolor=current_market_bgcolor)
-        table.cell(monitor_table, 2, 7, market_structure_display, text_color=structure_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=structure_color)
+        table.cell(monitor_table, 1, 7, "Keltner Alert", text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_bgcolor)
+        table.cell(monitor_table, 2, 7, keltner_alert_status, text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_color)
         table.cell(monitor_table, 3, 7, keltner_rank, text_color=keltner_rank_color, text_size=keltner_rank == "1" ? size.large : size.normal, bgcolor=keltner_rank == "1" ? color.orange : color.black)
         table.cell(monitor_table, 4, 7, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
@@ -1977,9 +1980,7 @@ rsi_display = str.tostring(math.round(rsi_value, 1)) + (rsi_value <= rsi_oversol
 volume_ratio = volume / volume_ma
 volume_status = volume_ratio <= 0.5 ? "L📉" : volume_ratio <= 1.0 ? "N📊" : volume_ratio <= volume_threshold_multiplier ? "A📈" : "H🚀"
 
-// Add Keltner Channel information when active
-keltner_info = show_keltner ? " KC:" + str.tostring(math.round(dynamic_multiplier, 1)) + (enable_volatility_adjustment ? "A" : "F") : ""
-combined_indicators = (plus_di > minus_di ? "Bull🟢" : "Bear🔴") + " ADX:" + (adx_value >= adx_threshold ? "S💪" : "W🥺") + " RSI:" + rsi_display + " Vol:" + volume_status + keltner_info
+combined_indicators = (plus_di > minus_di ? "Bull🟢" : "Bear🔴") + " ADX:" + (adx_value >= adx_threshold ? "S💪" : "W🥺") + " RSI:" + rsi_display + " Vol:" + volume_status
 rsi_gradient_color = get_rsi_gradient_color(rsi_value, rsi_oversold, rsi_overbought)
 
 // Create indicators table in middle bottom

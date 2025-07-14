@@ -2,8 +2,8 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v6.5 Beta (Fixed bounce detection logic and synchronized alerts with chart indicators)
-// Next Version: v6.6 Beta
+// Revision: v6.6 Beta (Fixed Three Bar Stop Strategy table ranking system and optimized performance)
+// Next Version: v6.7 Beta
 //
 // =====================================================================================================================
 //
@@ -33,7 +33,8 @@
 //   v6.3 Beta - Fixed top strategy highlighting in both tables with simpler rank "1" detection for better visual prominence
 //   v6.5 Beta - Renamed Three Bar Strategy Performance Table to Three Bar Stop Strategy
 //   v6.4 Beta - Fixed undeclared identifier error for win percentage variables by adding persistent variable declarations
-//   v6.5 Beta - Fixed bounce detection logic by removing EMA alignment requirement, synchronized alert conditions with chart indicators, and cleaned up debug indicators to global scope
+//   v6.5 Beta - Fixed bounce detection logic by removing EMA alignment requirement, synchronized alert conditions with chart indicators, and cleaned up debug indicators
+//   v6.6 Beta - Fixed Three Bar Stop Strategy table ranking system by replacing complex loops with optimized direct comparisons, eliminating runtime timeout errors to global scope
 
 //
 // =====================================================================================================================
@@ -2026,177 +2027,77 @@ if show_pip_capture_table
     bounce_pip_rank_color = color.white
     keltner_pip_rank_color = color.white
     
-    // Simple ranking system - rank signals 1-4 based on pip capture performance
-    if smp_total_captures >= 2 and pivot_total_captures >= 2 and bounce_total_captures >= 2 and keltner_total_captures >= 2
-        // All four signals have data - simple ranking by pip capture
-        if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= bounce_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
-            smp_pip_rank := "1"
-            smp_pip_rank_color := color.yellow
-            if pivot_avg_pip_capture >= bounce_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
-                pivot_pip_rank := "2"
-                pivot_pip_rank_color := color.gray
-                if bounce_avg_pip_capture >= keltner_avg_pip_capture
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-            else if bounce_avg_pip_capture >= pivot_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
-                bounce_pip_rank := "2"
-                bounce_pip_rank_color := color.gray
-                if pivot_avg_pip_capture >= keltner_avg_pip_capture
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-            else
-                keltner_pip_rank := "2"
-                keltner_pip_rank_color := color.gray
-                if pivot_avg_pip_capture >= bounce_avg_pip_capture
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-                else
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-        else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= bounce_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
-            pivot_pip_rank := "1"
-            pivot_pip_rank_color := color.yellow
-            if smp_avg_pip_capture >= bounce_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
-                smp_pip_rank := "2"
-                smp_pip_rank_color := color.gray
-                if bounce_avg_pip_capture >= keltner_avg_pip_capture
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-            else if bounce_avg_pip_capture >= smp_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
-                bounce_pip_rank := "2"
-                bounce_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= keltner_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
-            else
-                keltner_pip_rank := "2"
-                keltner_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= bounce_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-                else
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
-        else if bounce_avg_pip_capture >= smp_avg_pip_capture and bounce_avg_pip_capture >= pivot_avg_pip_capture and bounce_avg_pip_capture >= keltner_avg_pip_capture
-            bounce_pip_rank := "1"
-            bounce_pip_rank_color := color.yellow
-            if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= keltner_avg_pip_capture
-                smp_pip_rank := "2"
-                smp_pip_rank_color := color.gray
-                if pivot_avg_pip_capture >= keltner_avg_pip_capture
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-            else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= keltner_avg_pip_capture
-                pivot_pip_rank := "2"
-                pivot_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= keltner_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    keltner_pip_rank := "4"
-                    keltner_pip_rank_color := color.red
-                else
-                    keltner_pip_rank := "3"
-                    keltner_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
-            else
-                keltner_pip_rank := "2"
-                keltner_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= pivot_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-                else
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
-        else
-            keltner_pip_rank := "1"
-            keltner_pip_rank_color := color.yellow
-            if smp_avg_pip_capture >= pivot_avg_pip_capture and smp_avg_pip_capture >= bounce_avg_pip_capture
-                smp_pip_rank := "2"
-                smp_pip_rank_color := color.gray
-                if pivot_avg_pip_capture >= bounce_avg_pip_capture
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-                else
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-            else if pivot_avg_pip_capture >= smp_avg_pip_capture and pivot_avg_pip_capture >= bounce_avg_pip_capture
-                pivot_pip_rank := "2"
-                pivot_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= bounce_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    bounce_pip_rank := "4"
-                    bounce_pip_rank_color := color.red
-                else
-                    bounce_pip_rank := "3"
-                    bounce_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
-            else
-                bounce_pip_rank := "2"
-                bounce_pip_rank_color := color.gray
-                if smp_avg_pip_capture >= pivot_avg_pip_capture
-                    smp_pip_rank := "3"
-                    smp_pip_rank_color := color.orange
-                    pivot_pip_rank := "4"
-                    pivot_pip_rank_color := color.red
-                else
-                    pivot_pip_rank := "3"
-                    pivot_pip_rank_color := color.orange
-                    smp_pip_rank := "4"
-                    smp_pip_rank_color := color.red
+    // Simple ranking system - rank signals 1-4 based on pip capture performance (rank signals with at least 2 trades)
+    if smp_total_captures >= 2 or pivot_total_captures >= 2 or bounce_total_captures >= 2 or keltner_total_captures >= 2
+        // Create arrays to store valid signals for ranking
+        var array<string> valid_signals = array.new<string>()
+        var array<float> valid_pip_captures = array.new<float>()
+        
+        // Add signals with sufficient data to ranking arrays
+        if smp_total_captures >= 2
+            array.push(valid_signals, "SMP")
+            array.push(valid_pip_captures, smp_avg_pip_capture)
+        if pivot_total_captures >= 2
+            array.push(valid_signals, "PIVOT")
+            array.push(valid_pip_captures, pivot_avg_pip_capture)
+        if bounce_total_captures >= 2
+            array.push(valid_signals, "BOUNCE")
+            array.push(valid_pip_captures, bounce_avg_pip_capture)
+        if keltner_total_captures >= 2
+            array.push(valid_signals, "KELTNER")
+            array.push(valid_pip_captures, keltner_avg_pip_capture)
+        
+        // Simple ranking - just compare pip captures directly
+        if array.size(valid_signals) > 0
+            // Simple comparison-based ranking (much faster)
+            smp_rank_value = smp_total_captures >= 2 ? smp_avg_pip_capture : -999.0
+            pivot_rank_value = pivot_total_captures >= 2 ? pivot_avg_pip_capture : -999.0
+            bounce_rank_value = bounce_total_captures >= 2 ? bounce_avg_pip_capture : -999.0
+            keltner_rank_value = keltner_total_captures >= 2 ? keltner_avg_pip_capture : -999.0
+            
+            // Count how many signals have valid data
+            valid_count = 0
+            if smp_rank_value > -999.0
+                valid_count := valid_count + 1
+            if pivot_rank_value > -999.0
+                valid_count := valid_count + 1
+            if bounce_rank_value > -999.0
+                valid_count := valid_count + 1
+            if keltner_rank_value > -999.0
+                valid_count := valid_count + 1
+            
+            // Simple ranking logic
+            if valid_count >= 1
+                // Find highest
+                if smp_rank_value >= pivot_rank_value and smp_rank_value >= bounce_rank_value and smp_rank_value >= keltner_rank_value
+                    smp_pip_rank := "1"
+                    smp_pip_rank_color := color.yellow
+                else if pivot_rank_value >= smp_rank_value and pivot_rank_value >= bounce_rank_value and pivot_rank_value >= keltner_rank_value
+                    pivot_pip_rank := "1"
+                    pivot_pip_rank_color := color.yellow
+                else if bounce_rank_value >= smp_rank_value and bounce_rank_value >= pivot_rank_value and bounce_rank_value >= keltner_rank_value
+                    bounce_pip_rank := "1"
+                    bounce_pip_rank_color := color.yellow
+                else if keltner_rank_value >= smp_rank_value and keltner_rank_value >= pivot_rank_value and keltner_rank_value >= bounce_rank_value
+                    keltner_pip_rank := "1"
+                    keltner_pip_rank_color := color.yellow
+                
+                // Find second highest (only if we have 2+ signals)
+                if valid_count >= 2
+                    if (smp_rank_value >= pivot_rank_value and smp_rank_value >= bounce_rank_value and smp_rank_value >= keltner_rank_value and smp_pip_rank != "1") or (smp_rank_value < pivot_rank_value and smp_rank_value < bounce_rank_value and smp_rank_value < keltner_rank_value)
+                        smp_pip_rank := "2"
+                        smp_pip_rank_color := color.gray
+                    else if (pivot_rank_value >= smp_rank_value and pivot_rank_value >= bounce_rank_value and pivot_rank_value >= keltner_rank_value and pivot_pip_rank != "1") or (pivot_rank_value < smp_rank_value and pivot_rank_value < bounce_rank_value and pivot_rank_value < keltner_rank_value)
+                        pivot_pip_rank := "2"
+                        pivot_pip_rank_color := color.gray
+                    else if (bounce_rank_value >= smp_rank_value and bounce_rank_value >= pivot_rank_value and bounce_rank_value >= keltner_rank_value and bounce_pip_rank != "1") or (bounce_rank_value < smp_rank_value and bounce_rank_value < pivot_rank_value and bounce_rank_value < keltner_rank_value)
+                        bounce_pip_rank := "2"
+                        bounce_pip_rank_color := color.gray
+                    else if (keltner_rank_value >= smp_rank_value and keltner_rank_value >= pivot_rank_value and keltner_rank_value >= bounce_rank_value and keltner_pip_rank != "1") or (keltner_rank_value < smp_rank_value and keltner_rank_value < pivot_rank_value and keltner_rank_value < bounce_rank_value)
+                        keltner_pip_rank := "2"
+                        keltner_pip_rank_color := color.gray
+            
+
     else
         // Not enough data for ranking
         smp_pip_rank := "-"

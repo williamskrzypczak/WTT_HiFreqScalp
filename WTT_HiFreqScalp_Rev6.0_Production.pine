@@ -34,7 +34,7 @@
 // enabling automated alerting for traders. User options allow toggling the display of individual EMAs and the RSI/ADX -
 // monitor table for a tailored charting experience. -------------------------------------------------------------------
 
-indicator("WTT_HiFreqScalp_V5.2Beta", overlay=true)
+indicator("WTT_HiFreqScalp_Rev6.0_Production", overlay=true)
 
 // ======================================== INPUT GROUPS ===============================================================
 // Organizing inputs into logical groups for better UI experience ------------------------------------------------------
@@ -1916,7 +1916,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
     keltner_bars_display = bars_since_keltner <= 3 ? str.tostring(bars_since_keltner) : ">3"
     keltner_bars_color = bars_since_keltner <= 3 ? color.yellow : color.gray
 
-    // Keltner Breakout row - only show if enabled
+    // Keltner Breakout row - only show if performance data is enabled and Keltner channels are enabled
     if show_performance_data and enable_keltner_channels
         // Calculate Keltner performance stats
         keltner_trend_success_rate = keltner_trend_total_count > 0 ? math.round(keltner_trend_success_count / keltner_trend_total_count * 100) : na
@@ -1973,6 +1973,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         
         // Highlight Keltner indicator name when signal is active (within 3 bars)
         keltner_indicator_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
+        
         table.cell(monitor_table, 0, 6, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 6, "Keltner Breakout", text_color=color.white, text_size=size.normal, bgcolor=keltner_indicator_bgcolor)
         table.cell(monitor_table, 2, 6, keltner_performance_display, text_color=color.white, bgcolor=color.orange, text_size=size.normal)
@@ -1989,17 +1990,64 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         keltner_alert_status = keltner_upper_cross_up ? "BULLISH" : keltner_lower_cross_down ? "BEARISH" : "INACTIVE"
         keltner_alert_color = keltner_upper_cross_up ? color.green : keltner_lower_cross_down ? color.red : color.gray
         
-        // Strategy recommendation based on highest success rate
-        strategy_recommendation = highest_win_rank_signal != "" ? "USE " + highest_win_rank_signal : "NO DATA"
-        strategy_recommendation_color = highest_win_rank_signal == "SMP" ? color.yellow : 
-                                       highest_win_rank_signal == "PIVOT" ? color.lime : 
-                                       highest_win_rank_signal == "BOUNCE" ? color.orange : 
-                                       highest_win_rank_signal == "KELTNER" ? color.purple : color.gray
+        // Keltner trading direction recommendation based on trend vs counter-trend performance
+        keltner_trend_success_rate = keltner_trend_total_count > 0 ? math.round(keltner_trend_success_count / keltner_trend_total_count * 100) : na
+        keltner_countertrend_success_rate = keltner_countertrend_total_count > 0 ? math.round(keltner_countertrend_success_count / keltner_countertrend_total_count * 100) : na
+        
+        // Determine trading direction recommendation
+        strategy_recommendation = ""
+        strategy_recommendation_color = color.gray
+        
+        if keltner_trend_total_count > 0 or keltner_countertrend_total_count > 0
+            keltner_trend_performance = keltner_trend_success_rate ? keltner_trend_success_rate : 0
+            keltner_countertrend_performance = keltner_countertrend_success_rate ? keltner_countertrend_success_rate : 0
+            
+            if keltner_trend_performance > keltner_countertrend_performance
+                if keltner_trend_performance >= 40
+                    strategy_recommendation := "→ TREND (STRONG)"
+                    strategy_recommendation_color := color.green
+                else if keltner_trend_performance >= 25
+                    strategy_recommendation := "→ TREND (MOD)"
+                    strategy_recommendation_color := color.lime
+                else
+                    strategy_recommendation := "→ TREND (WEAK)"
+                    strategy_recommendation_color := color.yellow
+            else if keltner_countertrend_performance > keltner_trend_performance
+                if keltner_countertrend_performance >= 40
+                    strategy_recommendation := "→ COUNTER (STRONG)"
+                    strategy_recommendation_color := color.red
+                else if keltner_countertrend_performance >= 25
+                    strategy_recommendation := "→ COUNTER (MOD)"
+                    strategy_recommendation_color := color.orange
+                else
+                    strategy_recommendation := "→ COUNTER (WEAK)"
+                    strategy_recommendation_color := color.yellow
+            else if keltner_trend_performance == keltner_countertrend_performance and keltner_trend_performance > 0
+                if keltner_trend_performance >= 35
+                    strategy_recommendation := "→ BOTH WORK"
+                    strategy_recommendation_color := color.purple
+                else
+                    strategy_recommendation := "→ NO CLEAR"
+                    strategy_recommendation_color := color.gray
+            else
+                // No clear winner, suggest based on which has more data
+                if keltner_trend_total_count > keltner_countertrend_total_count
+                    strategy_recommendation := "→ TREND (WEAK)"
+                    strategy_recommendation_color := color.yellow
+                else if keltner_countertrend_total_count > keltner_trend_total_count
+                    strategy_recommendation := "→ COUNTER (WEAK)"
+                    strategy_recommendation_color := color.yellow
+                else
+                    strategy_recommendation := "→ WAIT FOR DATA"
+                    strategy_recommendation_color := color.gray
+        else
+            strategy_recommendation := "→ NO DATA"
+            strategy_recommendation_color := color.gray
         
         table.cell(monitor_table, 0, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(monitor_table, 1, 7, "Keltner Alert", text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_bgcolor)
-        table.cell(monitor_table, 2, 7, keltner_alert_status, text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_color)
-        table.cell(monitor_table, 3, 7, strategy_recommendation, text_color=color.white, text_size=size.normal, bgcolor=strategy_recommendation_color)
+        table.cell(monitor_table, 2, 7, strategy_recommendation, text_color=color.white, text_size=size.normal, bgcolor=strategy_recommendation_color)
+        table.cell(monitor_table, 3, 7, keltner_rank, text_color=keltner_rank_color, text_size=keltner_rank == "1" ? size.large : size.normal, bgcolor=keltner_rank == "1" ? color.orange : color.black)
         table.cell(monitor_table, 4, 7, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
 

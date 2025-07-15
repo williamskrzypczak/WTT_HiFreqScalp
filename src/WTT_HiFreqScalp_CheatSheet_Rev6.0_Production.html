@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WTT_HiFreqScalp Cheat Sheet Rev6.0 Production</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header .version {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .alert-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .alert-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .alert-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .alert-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .indicator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .indicator-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+            transition: transform 0.2s;
+        }
+        
+        .indicator-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .indicator-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .indicator-card.lime { border-left-color: #32CD32; }
+        .indicator-card.white { border-left-color: #FFFFFF; color: #333; }
+        .indicator-card.yellow { border-left-color: #FFD700; }
+        .indicator-card.purple { border-left-color: #9370DB; }
+        .indicator-card.green { border-left-color: #228B22; }
+        .indicator-card.red { border-left-color: #DC143C; }
+        .indicator-card.orange { border-left-color: #FF8C00; }
+        
+        .table-features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .feature-box {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-top: 4px solid #667eea;
+        }
+        
+        .feature-box h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin: 2px;
+        }
+        
+        .badge.green { background: #d4edda; color: #155724; }
+        .badge.red { background: #f8d7da; color: #721c24; }
+        .badge.yellow { background: #fff3cd; color: #856404; }
+        .badge.blue { background: #d1ecf1; color: #0c5460; }
+        .badge.orange { background: #ffeaa7; color: #d63031; }
+        
+        .footer {
+            background: #2c3e50;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            font-size: 0.9em;
+        }
+        
+        .emoji {
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 WTT_HiFreqScalp</h1>
+            <div class="version">Rev6.0 Production - Professional Trading Indicator</div>
+        </div>
+        
+        <div class="content">
+            <!-- Alert Conditions Section -->
+            <div class="section">
+                <h2>🔔 Alert Conditions</h2>
+                <table class="alert-table">
+                    <thead>
+                        <tr>
+                            <th>Alert Name</th>
+                            <th>Trigger Condition</th>
+                            <th>Chart Indicator</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Syzygy Pivot Long (Trending Up)</strong></td>
+                            <td>Fast EMA crosses above Middle EMA + Market trending up + Price change > 0</td>
+                            <td><span class="badge green">Lime Triangle ▼</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Syzygy Pivot Short (Trending Down)</strong></td>
+                            <td>Fast EMA crosses below Middle EMA + Market trending down + Price change < 0</td>
+                            <td><span class="badge white">White Triangle ▲</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Syzygy Momentum Peak</strong></td>
+                            <td>Momentum peak detection with volume confirmation</td>
+                            <td><span class="badge yellow">Yellow Circle</span> <span class="badge purple">Purple Circle</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Long Pivot Bounce Detected</strong></td>
+                            <td>Pullback detection after long pivot signal</td>
+                            <td><span class="badge orange">Orange Triangle ▼</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Short Pivot Bounce Detected</strong></td>
+                            <td>Pullback detection after short pivot signal</td>
+                            <td><span class="badge orange">Orange Triangle ▲</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Syzygy Range Breakout Bullish</strong></td>
+                            <td>Price breaks above Keltner Channel upper band</td>
+                            <td><span class="badge green">Green Square</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Syzygy Range Breakout Bearish</strong></td>
+                            <td>Price breaks below Keltner Channel lower band</td>
+                            <td><span class="badge red">Red Square</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Chart Indicators Section -->
+            <div class="section">
+                <h2>📊 Chart Indicators</h2>
+                <div class="indicator-grid">
+                    <div class="indicator-card lime">
+                        <h3>🟢 Long Pivot Signals</h3>
+                        <p><strong>Lime Triangle ▼</strong> - Fast EMA crosses above Middle EMA</p>
+                        <p><em>Only fires when market is trending up</em></p>
+                    </div>
+                    
+                    <div class="indicator-card white">
+                        <h3>⚪ Short Pivot Signals</h3>
+                        <p><strong>White Triangle ▲</strong> - Fast EMA crosses below Middle EMA</p>
+                        <p><em>Only fires when market is trending down</em></p>
+                    </div>
+                    
+                    <div class="indicator-card yellow">
+                        <h3>🟡 Strong Momentum Peaks</h3>
+                        <p><strong>Yellow Circle</strong> - Strong momentum peak with volume confirmation</p>
+                        <p><em>Larger size for high-probability signals</em></p>
+                    </div>
+                    
+                    <div class="indicator-card purple">
+                        <h3>🟣 Weak Momentum Peaks</h3>
+                        <p><strong>Purple Circle</strong> - Weak momentum peak signals</p>
+                        <p><em>Smaller size for lower-probability signals</em></p>
+                    </div>
+                    
+                    <div class="indicator-card green">
+                        <h3>🟢 Keltner Breakout Bullish</h3>
+                        <p><strong>Green Square</strong> - Price breaks above Keltner Channel</p>
+                        <p><em>Range breakout signal</em></p>
+                    </div>
+                    
+                    <div class="indicator-card red">
+                        <h3>🔴 Keltner Breakout Bearish</h3>
+                        <p><strong>Red Square</strong> - Price breaks below Keltner Channel</p>
+                        <p><em>Range breakout signal</em></p>
+                    </div>
+                    
+                    <div class="indicator-card orange">
+                        <h3>🟠 Bounce Detection</h3>
+                        <p><strong>Orange Triangle</strong> - Pullback bounce after pivot signals</p>
+                        <p><em>Re-entry opportunities</em></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Table Features Section -->
+            <div class="section">
+                <h2>📋 Table Features</h2>
+                <div class="table-features">
+                    <div class="feature-box">
+                        <h4>🎯 5 x 5 Stop Strategy Table</h4>
+                        <p><strong>Position:</strong> Configurable (top/bottom, left/right)</p>
+                        <p><strong>Features:</strong></p>
+                        <ul>
+                            <li>Signal performance tracking</li>
+                            <li>Keltner Alert row (BULLISH/BEARISH/INACTIVE)</li>
+                            <li>Ranking system (1-4) with color coding</li>
+                            <li>Bars since last signal</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-box">
+                        <h4>📈 Three Bar Stop Strategy Table</h4>
+                        <p><strong>Position:</strong> Configurable (top/bottom, left/right)</p>
+                        <p><strong>Features:</strong></p>
+                        <ul>
+                            <li>3-bar pip capture analysis</li>
+                            <li>Win percentage calculation</li>
+                            <li>Performance ranking (1-4)</li>
+                            <li>Optional performance columns</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-box">
+                        <h4>📊 Indicators Table</h4>
+                        <p><strong>Position:</strong> Bottom center</p>
+                        <p><strong>Features:</strong></p>
+                        <ul>
+                            <li>Trend direction (Bull/Bear)</li>
+                            <li>ADX strength (Strong/Weak)</li>
+                            <li>RSI with color indicators</li>
+                            <li>Volume status</li>
+                            <li>Current market structure</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="feature-box">
+                        <h4>🎨 Visual Enhancements</h4>
+                        <p><strong>Features:</strong></p>
+                        <ul>
+                            <li>Color-coded signal strength</li>
+                            <li>Rank highlighting (Yellow for #1)</li>
+                            <li>Alert synchronization</li>
+                            <li>Dynamic Keltner Channel width</li>
+                            <li>Volume-based filtering</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Key Features Section -->
+            <div class="section">
+                <h2>⭐ Key Features</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px;">
+                    <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <h4>🎯 Signal Filtering</h4>
+                        <p>Market structure-based filtering for higher accuracy</p>
+                    </div>
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                        <h4>📊 Performance Tracking</h4>
+                        <p>Real-time pip capture and win percentage analysis</p>
+                    </div>
+                    <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; border-left: 4px solid #17a2b8;">
+                        <h4>🔔 Smart Alerts</h4>
+                        <p>Configurable alerts with market condition validation</p>
+                    </div>
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <h4>⚡ High Performance</h4>
+                        <p>Optimized code for smooth real-time operation</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>© William Skrzypczak - Waverider Trading Technologies</p>
+            <p>Rev6.0 Production - Professional Trading Indicator</p>
+        </div>
+    </div>
+</body>
+</html> 

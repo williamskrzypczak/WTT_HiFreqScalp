@@ -166,6 +166,7 @@
         .badge.yellow { background: #fff3cd; color: #856404; }
         .badge.blue { background: #d1ecf1; color: #0c5460; }
         .badge.orange { background: #ffeaa7; color: #d63031; }
+        .badge.purple { background: #e2d9f3; color: #6f42c1; }
         
         .footer {
             background: #2c3e50;
@@ -178,6 +179,35 @@
         .emoji {
             font-size: 1.2em;
         }
+        
+        .recommendation-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .recommendation-table th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .recommendation-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9em;
+        }
+        
+        .recommendation-table tr:hover {
+            background: #f8f9fa;
+        }
     </style>
 </head>
 <body>
@@ -188,6 +218,85 @@
         </div>
         
         <div class="content">
+            <!-- Keltner Alert Trading Recommendations Section -->
+            <div class="section">
+                <h2>🎯 Keltner Alert Trading Recommendations</h2>
+                <p style="margin-bottom: 15px; font-size: 1.1em;"><strong>NEW FEATURE:</strong> The Keltner Alert row now provides intelligent trading direction recommendations based on historical performance data.</p>
+                
+                <table class="recommendation-table">
+                    <thead>
+                        <tr>
+                            <th>Recommendation</th>
+                            <th>Condition</th>
+                            <th>Color</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>→ TREND (STRONG)</strong></td>
+                            <td>Trend direction ≥40% success rate</td>
+                            <td><span class="badge green">Green</span></td>
+                            <td>Trade with the trend confidently</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ TREND (MOD)</strong></td>
+                            <td>Trend direction 25-39% success rate</td>
+                            <td><span class="badge green">Lime</span></td>
+                            <td>Trade with trend, moderate confidence</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ TREND (WEAK)</strong></td>
+                            <td>Trend direction <25% success rate</td>
+                            <td><span class="badge yellow">Yellow</span></td>
+                            <td>Trade with trend cautiously</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ COUNTER (STRONG)</strong></td>
+                            <td>Counter-trend direction ≥40% success rate</td>
+                            <td><span class="badge red">Red</span></td>
+                            <td>Trade against the trend confidently</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ COUNTER (MOD)</strong></td>
+                            <td>Counter-trend direction 25-39% success rate</td>
+                            <td><span class="badge orange">Orange</span></td>
+                            <td>Trade against trend, moderate confidence</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ COUNTER (WEAK)</strong></td>
+                            <td>Counter-trend direction <25% success rate</td>
+                            <td><span class="badge yellow">Yellow</span></td>
+                            <td>Trade against trend cautiously</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ BOTH WORK</strong></td>
+                            <td>Both directions ≥35% success rate</td>
+                            <td><span class="badge purple">Purple</span></td>
+                            <td>Both strategies viable</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ NO CLEAR</strong></td>
+                            <td>Equal poor performance</td>
+                            <td><span class="badge blue">Gray</span></td>
+                            <td>Wait for better conditions</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ WAIT FOR DATA</strong></td>
+                            <td>Insufficient historical data</td>
+                            <td><span class="badge blue">Gray</span></td>
+                            <td>Wait for more signals</td>
+                        </tr>
+                        <tr>
+                            <td><strong>→ NO DATA</strong></td>
+                            <td>No trades recorded yet</td>
+                            <td><span class="badge blue">Gray</span></td>
+                            <td>Indicator needs more time</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
             <!-- Alert Conditions Section -->
             <div class="section">
                 <h2>🔔 Alert Conditions</h2>
@@ -297,9 +406,10 @@
                         <p><strong>Features:</strong></p>
                         <ul>
                             <li>Signal performance tracking</li>
-                            <li>Keltner Alert row (BULLISH/BEARISH/INACTIVE)</li>
+                            <li><strong>NEW:</strong> Keltner Alert with trading direction recommendations</li>
                             <li>Ranking system (1-4) with color coding</li>
                             <li>Bars since last signal</li>
+                            <li><strong>NEW:</strong> Performance data toggle (Show/Hide detailed stats)</li>
                         </ul>
                     </div>
                     
@@ -311,7 +421,8 @@
                             <li>3-bar pip capture analysis</li>
                             <li>Win percentage calculation</li>
                             <li>Performance ranking (1-4)</li>
-                            <li>Optional performance columns</li>
+                            <li><strong>NEW:</strong> "Show Performance Data" toggle for detailed columns</li>
+                            <li>Average pips, total trades, win % columns</li>
                         </ul>
                     </div>
                     
@@ -337,6 +448,7 @@
                             <li>Alert synchronization</li>
                             <li>Dynamic Keltner Channel width</li>
                             <li>Volume-based filtering</li>
+                            <li><strong>NEW:</strong> Color-coded trading recommendations</li>
                         </ul>
                     </div>
                 </div>
@@ -361,6 +473,14 @@
                     <div style="background: #f8d7da; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
                         <h4>⚡ High Performance</h4>
                         <p>Optimized code for smooth real-time operation</p>
+                    </div>
+                    <div style="background: #e2d9f3; padding: 15px; border-radius: 8px; border-left: 4px solid #6f42c1;">
+                        <h4>🧠 AI Recommendations</h4>
+                        <p><strong>NEW:</strong> Intelligent trading direction recommendations based on historical performance</p>
+                    </div>
+                    <div style="background: #ffeaa7; padding: 15px; border-radius: 8px; border-left: 4px solid #d63031;">
+                        <h4>🎛️ Flexible Display</h4>
+                        <p><strong>NEW:</strong> Toggle between detailed and simplified table views</p>
                     </div>
                 </div>
             </div>

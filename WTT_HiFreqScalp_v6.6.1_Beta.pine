@@ -68,7 +68,7 @@ volume_ma_length = trading_style == "Scalping" ? 20 : trading_style == "Day Trad
 show_pip_capture_table = input.bool(true, title="Show Three Bar Strategy Performance Table", group=GROUP_PIP_CAPTURE, tooltip="Display table showing pip capture for trades held for 3 bars")
 pip_table_position = input.string("bottom_right", title="Pip Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_PIP_CAPTURE)
 pip_capture_lookback = input.int(50, title="Pip Capture Lookback", minval=10, maxval=200, group=GROUP_PIP_CAPTURE, tooltip="Number of recent signals to track for pip capture analysis")
-show_performance_columns = input.bool(false, title="Show Performance Columns", group=GROUP_PIP_CAPTURE, tooltip="Display average pips, total trades, and win percentage columns in the table")
+show_pip_performance_data = input.bool(false, title="Show Performance Data", group=GROUP_PIP_CAPTURE, tooltip="Display average pips, total trades, and win percentage columns in the table")
 
 
 // ================================= 5 x 5 STRATEGY PERFORMANCE TABLE SETTINGS =========================================
@@ -81,7 +81,6 @@ adx_threshold = trading_style == "Scalping" ? 25 : trading_style == "Day Trading
 show_table = input.bool(true, title="Show 5 x 5 Strategy Performance Table", group=GROUP_RSI_ADX)
 table_position = input.string("bottom_left", title="Table Position", options=["top_right", "top_left", "bottom_left", "bottom_right"], group=GROUP_RSI_ADX)
 show_performance_data = input.bool(false, title="Show Performance Data", group=GROUP_RSI_ADX, tooltip="Display success rates and signal counts for SMP, Pivot, and Bounce signals")
-show_debug_row = input.bool(false, title="Show Debug Row", group=GROUP_RSI_ADX, tooltip="Display debug information row in the table")
 
 // Reversal threshold multiplier for potential signal detection
 reversal_threshold = 0.85
@@ -2166,12 +2165,12 @@ if show_pip_capture_table
     // Create three bar strategy performance table with position based on user selection (create once)
     var table pip_capture_table = table.new(position = pip_table_position == "top_right" ? 
      position.top_right : pip_table_position == "top_left" ? position.top_left : pip_table_position == "bottom_left" ? 
-     position.bottom_left : position.bottom_right, columns = show_performance_columns ? 7 : 5, rows = 7, bgcolor = color.rgb(0, 0, 0, 80), 
+     position.bottom_left : position.bottom_right, columns = show_pip_performance_data ? 7 : 5, rows = 7, bgcolor = color.rgb(0, 0, 0, 80), 
      border_width = 1)
 
     // Table header
     table.cell(pip_capture_table, 0, 0, "Signal Type", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 0, "Avg Pips (3 bars)", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(pip_capture_table, 2, 0, "Total Trades", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(pip_capture_table, 3, 0, "Win %", text_color=color.white, text_size=size.normal, bgcolor=color.black)
@@ -2189,7 +2188,7 @@ if show_pip_capture_table
     // Highlight SMP indicator name when signal is active (synchronized with alert condition)
     smp_indicator_bgcolor = not na(smp_highlight_bars) ? color.new(color.blue, 30) : color.black
     table.cell(pip_capture_table, 0, 1, "SMP", text_color=color.white, text_size=size.normal, bgcolor=smp_indicator_bgcolor)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 1, str.tostring(math.round(smp_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=smp_pip_color)
         table.cell(pip_capture_table, 2, 1, str.tostring(smp_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.blue)
         table.cell(pip_capture_table, 3, 1, str.tostring(math.round(smp_win_percentage, 1)) + "%", text_color=smp_win_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=smp_win_color)
@@ -2215,7 +2214,7 @@ if show_pip_capture_table
     // Highlight Pivot indicator name when signal is active (synchronized with alert condition)
     pivot_indicator_bgcolor = not na(pivot_highlight_bars) ? color.new(color.teal, 30) : color.black
     table.cell(pip_capture_table, 0, 2, "Pivot", text_color=color.white, text_size=size.normal, bgcolor=pivot_indicator_bgcolor)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 2, str.tostring(math.round(pivot_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=pivot_pip_color)
         table.cell(pip_capture_table, 2, 2, str.tostring(pivot_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.teal)
         table.cell(pip_capture_table, 3, 2, str.tostring(math.round(pivot_win_percentage, 1)) + "%", text_color=pivot_win_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=pivot_win_color)
@@ -2241,7 +2240,7 @@ if show_pip_capture_table
     // Highlight Bounce indicator name when signal is active (synchronized with alert condition)
     bounce_indicator_bgcolor = not na(bounce_highlight_bars) ? color.new(color.fuchsia, 30) : color.black
     table.cell(pip_capture_table, 0, 3, "Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 3, str.tostring(math.round(bounce_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=bounce_pip_color)
         table.cell(pip_capture_table, 2, 3, str.tostring(bounce_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
         table.cell(pip_capture_table, 3, 3, str.tostring(math.round(bounce_win_percentage, 1)) + "%", text_color=bounce_win_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=bounce_win_color)
@@ -2267,7 +2266,7 @@ if show_pip_capture_table
     // Highlight Keltner indicator name when signal is active (synchronized with alert condition)
     keltner_indicator_bgcolor = not na(keltner_highlight_bars) ? color.new(color.orange, 30) : color.black
     table.cell(pip_capture_table, 0, 4, "Keltner Breakout", text_color=color.white, text_size=size.normal, bgcolor=keltner_indicator_bgcolor)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 4, str.tostring(math.round(keltner_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=keltner_pip_color)
         table.cell(pip_capture_table, 2, 4, str.tostring(keltner_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.orange)
         table.cell(pip_capture_table, 3, 4, str.tostring(math.round(keltner_win_percentage, 1)) + "%", text_color=keltner_win_color == color.yellow ? color.black : color.white, text_size=size.normal, bgcolor=keltner_win_color)
@@ -2289,7 +2288,7 @@ if show_pip_capture_table
 
     // Table name row at the bottom
     table.cell(pip_capture_table, 0, 5, "Three Bar", text_color=color.white, text_size=size.large, bgcolor=color.black)
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 1, 5, "Stop Strategy", text_color=color.white, text_size=size.large, bgcolor=color.black)
         table.cell(pip_capture_table, 2, 5, "Table", text_color=color.white, text_size=size.large, bgcolor=color.black)
         table.cell(pip_capture_table, 3, 5, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
@@ -2302,7 +2301,7 @@ if show_pip_capture_table
         table.cell(pip_capture_table, 3, 5, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
 
     // Empty row for spacing at the bottom
-    if show_performance_columns
+    if show_pip_performance_data
         table.cell(pip_capture_table, 0, 6, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(pip_capture_table, 1, 6, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
         table.cell(pip_capture_table, 2, 6, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)

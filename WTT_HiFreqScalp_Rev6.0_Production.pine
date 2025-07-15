@@ -17,7 +17,7 @@
 //               streamlined codebase for cleaner performance
 //   v4.3-v4.4Beta - UI improvements and Keltner Channel integration with dynamic volatility adjustment and breakout detection
 //   v5.0-v5.9 Beta - Enhanced signal tracking, performance tables, ranking systems, and visual enhancements with comprehensive optimization
-//   v6.0-v6.6.3 Beta - Production-ready features: Three Bar Stop Strategy table, Keltner Alert integration, optimized ranking system,
+//   v6.0-v6.6.3 Beta - Production-ready features: Three Bar Stop Strategy table,Keltner Breakout integration, optimized ranking system,
 //                      and final UI refinements for professional trading use
 
 //
@@ -673,7 +673,7 @@ else if not na(bounce_highlight_bars)
     if bounce_highlight_bars > 3
         bounce_highlight_bars := na
 
-// Keltner highlight: synchronize with Keltner alert conditions
+// Keltner highlight: synchronize with Keltner Breakout conditions
 if (keltner_upper_cross_up and alerts_enabled) or (keltner_lower_cross_down and alerts_enabled)
     keltner_highlight_bars := 0
 else if not na(keltner_highlight_bars)
@@ -2045,7 +2045,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
             strategy_recommendation_color := color.gray
         
         table.cell(monitor_table, 0, 7, "", text_color=color.white, text_size=size.normal, bgcolor=color.black)
-        table.cell(monitor_table, 1, 7, "Keltner Alert", text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_bgcolor)
+        table.cell(monitor_table, 1, 7, "Keltner Breakout", text_color=color.white, text_size=size.normal, bgcolor=keltner_alert_bgcolor)
         table.cell(monitor_table, 2, 7, strategy_recommendation, text_color=color.white, text_size=size.normal, bgcolor=strategy_recommendation_color)
         table.cell(monitor_table, 3, 7, keltner_rank, text_color=keltner_rank_color, text_size=keltner_rank == "1" ? size.large : size.normal, bgcolor=keltner_rank == "1" ? color.orange : color.black)
         table.cell(monitor_table, 4, 7, "          ", text_color=color.white, text_size=size.normal, bgcolor=color.black)
@@ -2128,101 +2128,103 @@ if show_pip_capture_table
         if keltner_win_rank_value > -999.0
             valid_count := valid_count + 1
         
-        // Enhanced ranking logic with tie handling
+        // FIXED: Simplified ranking logic that assigns unique ranks based on actual win percentages
         if valid_count >= 1
-            // Find the highest win percentage value
-            float highest_win_rate = -999.0
-            if smp_win_rank_value > highest_win_rate
-                highest_win_rate := smp_win_rank_value
-            if pivot_win_rank_value > highest_win_rate
-                highest_win_rate := pivot_win_rank_value
-            if bounce_win_rank_value > highest_win_rate
-                highest_win_rate := bounce_win_rank_value
-            if keltner_win_rank_value > highest_win_rate
-                highest_win_rate := keltner_win_rank_value
+            // Initialize all ranks to empty
+            smp_pip_rank := ""
+            pivot_pip_rank := ""
+            bounce_pip_rank := ""
+            keltner_pip_rank := ""
             
-            // Assign rank 1 to all signals with the highest win rate (handles ties)
-            if smp_win_rank_value == highest_win_rate
+            // Simple ranking by comparing win percentages directly
+            // Find the highest win percentage
+            float highest_win = -999.0
+            if smp_win_rank_value > highest_win
+                highest_win := smp_win_rank_value
+            if pivot_win_rank_value > highest_win
+                highest_win := pivot_win_rank_value
+            if bounce_win_rank_value > highest_win
+                highest_win := bounce_win_rank_value
+            if keltner_win_rank_value > highest_win
+                highest_win := keltner_win_rank_value
+            
+            // Assign rank 1 to the highest
+            if smp_win_rank_value == highest_win
                 smp_pip_rank := "1"
                 smp_pip_rank_color := color.yellow
-            if pivot_win_rank_value == highest_win_rate
+            if pivot_win_rank_value == highest_win
                 pivot_pip_rank := "1"
                 pivot_pip_rank_color := color.yellow
-            if bounce_win_rank_value == highest_win_rate
+            if bounce_win_rank_value == highest_win
                 bounce_pip_rank := "1"
                 bounce_pip_rank_color := color.yellow
-            if keltner_win_rank_value == highest_win_rate
+            if keltner_win_rank_value == highest_win
                 keltner_pip_rank := "1"
                 keltner_pip_rank_color := color.yellow
             
-            // Find the second highest win percentage (if we have 2+ signals)
-            if valid_count >= 2
-                float second_highest_win_rate = -999.0
-                // Find second highest among signals that don't have rank 1
-                if smp_win_rank_value < highest_win_rate and smp_win_rank_value > second_highest_win_rate
-                    second_highest_win_rate := smp_win_rank_value
-                if pivot_win_rank_value < highest_win_rate and pivot_win_rank_value > second_highest_win_rate
-                    second_highest_win_rate := pivot_win_rank_value
-                if bounce_win_rank_value < highest_win_rate and bounce_win_rank_value > second_highest_win_rate
-                    second_highest_win_rate := bounce_win_rank_value
-                if keltner_win_rank_value < highest_win_rate and keltner_win_rank_value > second_highest_win_rate
-                    second_highest_win_rate := keltner_win_rank_value
-                
-                // Assign rank 2 to all signals with the second highest win rate (handles ties)
-                if smp_win_rank_value == second_highest_win_rate and smp_pip_rank != "1"
-                    smp_pip_rank := "2"
-                    smp_pip_rank_color := color.gray
-                if pivot_win_rank_value == second_highest_win_rate and pivot_pip_rank != "1"
-                    pivot_pip_rank := "2"
-                    pivot_pip_rank_color := color.gray
-                if bounce_win_rank_value == second_highest_win_rate and bounce_pip_rank != "1"
-                    bounce_pip_rank := "2"
-                    bounce_pip_rank_color := color.gray
-                if keltner_win_rank_value == second_highest_win_rate and keltner_pip_rank != "1"
-                    keltner_pip_rank := "2"
-                    keltner_pip_rank_color := color.gray
-                
-                // Find the third highest win percentage (if we have 3+ signals)
-                if valid_count >= 3
-                    float third_highest_win_rate = -999.0
-                    // Find third highest among signals that don't have rank 1 or 2
-                    if smp_win_rank_value < second_highest_win_rate and smp_win_rank_value > third_highest_win_rate
-                        third_highest_win_rate := smp_win_rank_value
-                    if pivot_win_rank_value < second_highest_win_rate and pivot_win_rank_value > third_highest_win_rate
-                        third_highest_win_rate := pivot_win_rank_value
-                    if bounce_win_rank_value < second_highest_win_rate and bounce_win_rank_value > third_highest_win_rate
-                        third_highest_win_rate := bounce_win_rank_value
-                    if keltner_win_rank_value < second_highest_win_rate and keltner_win_rank_value > third_highest_win_rate
-                        third_highest_win_rate := keltner_win_rank_value
-                    
-                    // Assign rank 3 to all signals with the third highest win rate (handles ties)
-                    if smp_win_rank_value == third_highest_win_rate and smp_pip_rank != "1" and smp_pip_rank != "2"
-                        smp_pip_rank := "3"
-                        smp_pip_rank_color := color.orange
-                    if pivot_win_rank_value == third_highest_win_rate and pivot_pip_rank != "1" and pivot_pip_rank != "2"
-                        pivot_pip_rank := "3"
-                        pivot_pip_rank_color := color.orange
-                    if bounce_win_rank_value == third_highest_win_rate and bounce_pip_rank != "1" and bounce_pip_rank != "2"
-                        bounce_pip_rank := "3"
-                        bounce_pip_rank_color := color.orange
-                    if keltner_win_rank_value == third_highest_win_rate and keltner_pip_rank != "1" and keltner_pip_rank != "2"
-                        keltner_pip_rank := "3"
-                        keltner_pip_rank_color := color.orange
-                    
-                    // Assign rank 4 to remaining signals (if we have 4 signals)
-                    if valid_count >= 4
-                        if smp_pip_rank == ""
-                            smp_pip_rank := "4"
-                            smp_pip_rank_color := color.red
-                        if pivot_pip_rank == ""
-                            pivot_pip_rank := "4"
-                            pivot_pip_rank_color := color.red
-                        if bounce_pip_rank == ""
-                            bounce_pip_rank := "4"
-                            bounce_pip_rank_color := color.red
-                        if keltner_pip_rank == ""
-                            keltner_pip_rank := "4"
-                            keltner_pip_rank_color := color.red
+            // Find second highest (among remaining signals)
+            float second_highest = -999.0
+            if smp_win_rank_value < highest_win and smp_win_rank_value > second_highest
+                second_highest := smp_win_rank_value
+            if pivot_win_rank_value < highest_win and pivot_win_rank_value > second_highest
+                second_highest := pivot_win_rank_value
+            if bounce_win_rank_value < highest_win and bounce_win_rank_value > second_highest
+                second_highest := bounce_win_rank_value
+            if keltner_win_rank_value < highest_win and keltner_win_rank_value > second_highest
+                second_highest := keltner_win_rank_value
+            
+            // Assign rank 2
+            if smp_win_rank_value == second_highest and smp_pip_rank != "1"
+                smp_pip_rank := "2"
+                smp_pip_rank_color := color.gray
+            if pivot_win_rank_value == second_highest and pivot_pip_rank != "1"
+                pivot_pip_rank := "2"
+                pivot_pip_rank_color := color.gray
+            if bounce_win_rank_value == second_highest and bounce_pip_rank != "1"
+                bounce_pip_rank := "2"
+                bounce_pip_rank_color := color.gray
+            if keltner_win_rank_value == second_highest and keltner_pip_rank != "1"
+                keltner_pip_rank := "2"
+                keltner_pip_rank_color := color.gray
+            
+            // Find third highest (among remaining signals)
+            float third_highest = -999.0
+            if smp_win_rank_value < second_highest and smp_win_rank_value > third_highest
+                third_highest := smp_win_rank_value
+            if pivot_win_rank_value < second_highest and pivot_win_rank_value > third_highest
+                third_highest := pivot_win_rank_value
+            if bounce_win_rank_value < second_highest and bounce_win_rank_value > third_highest
+                third_highest := bounce_win_rank_value
+            if keltner_win_rank_value < second_highest and keltner_win_rank_value > third_highest
+                third_highest := keltner_win_rank_value
+            
+            // Assign rank 3
+            if smp_win_rank_value == third_highest and smp_pip_rank != "1" and smp_pip_rank != "2"
+                smp_pip_rank := "3"
+                smp_pip_rank_color := color.orange
+            if pivot_win_rank_value == third_highest and pivot_pip_rank != "1" and pivot_pip_rank != "2"
+                pivot_pip_rank := "3"
+                pivot_pip_rank_color := color.orange
+            if bounce_win_rank_value == third_highest and bounce_pip_rank != "1" and bounce_pip_rank != "2"
+                bounce_pip_rank := "3"
+                bounce_pip_rank_color := color.orange
+            if keltner_win_rank_value == third_highest and keltner_pip_rank != "1" and keltner_pip_rank != "2"
+                keltner_pip_rank := "3"
+                keltner_pip_rank_color := color.orange
+            
+            // Assign rank 4 to remaining signals
+            if smp_pip_rank == ""
+                smp_pip_rank := "4"
+                smp_pip_rank_color := color.red
+            if pivot_pip_rank == ""
+                pivot_pip_rank := "4"
+                pivot_pip_rank_color := color.red
+            if bounce_pip_rank == ""
+                bounce_pip_rank := "4"
+                bounce_pip_rank_color := color.red
+            if keltner_pip_rank == ""
+                keltner_pip_rank := "4"
+                keltner_pip_rank_color := color.red
 
     else
         // Not enough data for ranking
@@ -2307,7 +2309,7 @@ if show_pip_capture_table
     bounce_win_color = bounce_win_percentage >= 60 ? color.green : bounce_win_percentage >= 40 ? color.yellow : color.red
     // Highlight Bounce indicator name when signal is active (synchronized with alert condition)
     bounce_indicator_bgcolor = not na(bounce_highlight_bars) ? color.new(color.fuchsia, 30) : color.black
-    table.cell(pip_capture_table, 0, 3, "Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
+    table.cell(pip_capture_table, 0, 3, "Pivot Bounce", text_color=color.white, text_size=size.normal, bgcolor=bounce_indicator_bgcolor)
     if show_pip_performance_data
         table.cell(pip_capture_table, 1, 3, str.tostring(math.round(bounce_avg_pip_capture, 1)), text_color=color.white, text_size=size.normal, bgcolor=bounce_pip_color)
         table.cell(pip_capture_table, 2, 3, str.tostring(bounce_total_captures), text_color=color.white, text_size=size.normal, bgcolor=color.fuchsia)
@@ -2452,7 +2454,11 @@ if keltner_lower_cross_down
         array.pop(keltner_short_signal_bars)
         array.pop(keltner_short_pip_capture)
 
-// Calculate pip captures for signals that are exactly 3 bars old
+// ================================== FIXED PIP CAPTURE AND WIN PERCENTAGE CALCULATION =================================
+// Calculate individual trade results for accurate win percentage calculation
+// Track individual trade pip captures and classify each trade as win/loss
+
+// Initialize variables for individual trade tracking
 smp_long_pips = 0.0
 smp_short_pips = 0.0
 pivot_long_pips = 0.0
@@ -2471,7 +2477,20 @@ bounce_short_count = 0
 keltner_long_count = 0
 keltner_short_count = 0
 
-// Calculate SMP long pip captures
+// Initialize win/loss counters for accurate win percentage calculation
+smp_wins = 0
+smp_losses = 0
+pivot_wins = 0
+pivot_losses = 0
+bounce_wins = 0
+bounce_losses = 0
+keltner_wins = 0
+keltner_losses = 0
+
+// Win threshold for individual trades
+win_threshold = 0.5  // Minimum pips to consider a trade a win
+
+// Calculate SMP long pip captures (individual trade evaluation)
 if array.size(smp_long_signal_bars) > 0 and array.size(smp_long_pip_capture) > 0
     for i = 0 to math.min(array.size(smp_long_signal_bars) - 1, array.size(smp_long_pip_capture) - 1)
         signal_bar = array.get(smp_long_signal_bars, i)
@@ -2482,8 +2501,13 @@ if array.size(smp_long_signal_bars) > 0 and array.size(smp_long_pip_capture) > 0
             pip_capture = (current_price - signal_price) / pip_value
             smp_long_pips := smp_long_pips + pip_capture
             smp_long_count := smp_long_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                smp_wins := smp_wins + 1
+            else
+                smp_losses := smp_losses + 1
 
-// Calculate SMP short pip captures
+// Calculate SMP short pip captures (individual trade evaluation)
 if array.size(smp_short_signal_bars) > 0 and array.size(smp_short_pip_capture) > 0
     for i = 0 to math.min(array.size(smp_short_signal_bars) - 1, array.size(smp_short_pip_capture) - 1)
         signal_bar = array.get(smp_short_signal_bars, i)
@@ -2494,8 +2518,13 @@ if array.size(smp_short_signal_bars) > 0 and array.size(smp_short_pip_capture) >
             pip_capture = (signal_price - current_price) / pip_value
             smp_short_pips := smp_short_pips + pip_capture
             smp_short_count := smp_short_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                smp_wins := smp_wins + 1
+            else
+                smp_losses := smp_losses + 1
 
-// Calculate Pivot long pip captures
+// Calculate Pivot long pip captures (individual trade evaluation)
 if array.size(pivot_long_signal_bars) > 0 and array.size(pivot_long_pip_capture) > 0
     for i = 0 to math.min(array.size(pivot_long_signal_bars) - 1, array.size(pivot_long_pip_capture) - 1)
         signal_bar = array.get(pivot_long_signal_bars, i)
@@ -2506,8 +2535,13 @@ if array.size(pivot_long_signal_bars) > 0 and array.size(pivot_long_pip_capture)
             pip_capture = (current_price - signal_price) / pip_value
             pivot_long_pips := pivot_long_pips + pip_capture
             pivot_long_count := pivot_long_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                pivot_wins := pivot_wins + 1
+            else
+                pivot_losses := pivot_losses + 1
 
-// Calculate Pivot short pip captures
+// Calculate Pivot short pip captures (individual trade evaluation)
 if array.size(pivot_short_signal_bars) > 0 and array.size(pivot_short_pip_capture) > 0
     for i = 0 to math.min(array.size(pivot_short_signal_bars) - 1, array.size(pivot_short_pip_capture) - 1)
         signal_bar = array.get(pivot_short_signal_bars, i)
@@ -2518,8 +2552,13 @@ if array.size(pivot_short_signal_bars) > 0 and array.size(pivot_short_pip_captur
             pip_capture = (signal_price - current_price) / pip_value
             pivot_short_pips := pivot_short_pips + pip_capture
             pivot_short_count := pivot_short_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                pivot_wins := pivot_wins + 1
+            else
+                pivot_losses := pivot_losses + 1
 
-// Calculate Bounce long pip captures
+// Calculate Bounce long pip captures (individual trade evaluation)
 if array.size(bounce_long_signal_bars) > 0 and array.size(bounce_long_pip_capture) > 0
     for i = 0 to math.min(array.size(bounce_long_signal_bars) - 1, array.size(bounce_long_pip_capture) - 1)
         signal_bar = array.get(bounce_long_signal_bars, i)
@@ -2530,8 +2569,13 @@ if array.size(bounce_long_signal_bars) > 0 and array.size(bounce_long_pip_captur
             pip_capture = (current_price - signal_price) / pip_value
             bounce_long_pips := bounce_long_pips + pip_capture
             bounce_long_count := bounce_long_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                bounce_wins := bounce_wins + 1
+            else
+                bounce_losses := bounce_losses + 1
 
-// Calculate Bounce short pip captures
+// Calculate Bounce short pip captures (individual trade evaluation)
 if array.size(bounce_short_signal_bars) > 0 and array.size(bounce_short_pip_capture) > 0
     for i = 0 to math.min(array.size(bounce_short_signal_bars) - 1, array.size(bounce_short_pip_capture) - 1)
         signal_bar = array.get(bounce_short_signal_bars, i)
@@ -2542,8 +2586,13 @@ if array.size(bounce_short_signal_bars) > 0 and array.size(bounce_short_pip_capt
             pip_capture = (signal_price - current_price) / pip_value
             bounce_short_pips := bounce_short_pips + pip_capture
             bounce_short_count := bounce_short_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                bounce_wins := bounce_wins + 1
+            else
+                bounce_losses := bounce_losses + 1
 
-// Calculate Keltner long pip captures
+// Calculate Keltner long pip captures (individual trade evaluation)
 if array.size(keltner_long_signal_bars) > 0 and array.size(keltner_long_pip_capture) > 0
     for i = 0 to math.min(array.size(keltner_long_signal_bars) - 1, array.size(keltner_long_pip_capture) - 1)
         signal_bar = array.get(keltner_long_signal_bars, i)
@@ -2554,8 +2603,13 @@ if array.size(keltner_long_signal_bars) > 0 and array.size(keltner_long_pip_capt
             pip_capture = (current_price - signal_price) / pip_value
             keltner_long_pips := keltner_long_pips + pip_capture
             keltner_long_count := keltner_long_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                keltner_wins := keltner_wins + 1
+            else
+                keltner_losses := keltner_losses + 1
 
-// Calculate Keltner short pip captures
+// Calculate Keltner short pip captures (individual trade evaluation)
 if array.size(keltner_short_signal_bars) > 0 and array.size(keltner_short_pip_capture) > 0
     for i = 0 to math.min(array.size(keltner_short_signal_bars) - 1, array.size(keltner_short_pip_capture) - 1)
         signal_bar = array.get(keltner_short_signal_bars, i)
@@ -2566,6 +2620,11 @@ if array.size(keltner_short_signal_bars) > 0 and array.size(keltner_short_pip_ca
             pip_capture = (signal_price - current_price) / pip_value
             keltner_short_pips := keltner_short_pips + pip_capture
             keltner_short_count := keltner_short_count + 1
+            // Classify individual trade as win or loss
+            if pip_capture >= win_threshold
+                keltner_wins := keltner_wins + 1
+            else
+                keltner_losses := keltner_losses + 1
 
 // Update persistent pip capture statistics
 smp_total_captures := smp_long_count + smp_short_count
@@ -2584,14 +2643,11 @@ keltner_total_captures := keltner_long_count + keltner_short_count
 keltner_accumulated_pips := keltner_long_pips + keltner_short_pips
 keltner_avg_pip_capture := keltner_total_captures > 0 ? keltner_accumulated_pips / keltner_total_captures : 0.0
 
-// Calculate actual win percentages for each signal type
-// A trade is considered a "win" if it captures at least 0.5 pips (to account for spread/slippage)
-win_threshold = 0.5  // Minimum pips to consider a trade a win
-
-smp_win_percentage := smp_total_captures > 0 ? (smp_long_count + smp_short_count > 0 ? ((smp_long_pips >= win_threshold ? smp_long_count : 0) + (smp_short_pips >= win_threshold ? smp_short_count : 0)) / (smp_long_count + smp_short_count) * 100 : 50.0) : 0.0
-pivot_win_percentage := pivot_total_captures > 0 ? (pivot_long_count + pivot_short_count > 0 ? ((pivot_long_pips >= win_threshold ? pivot_long_count : 0) + (pivot_short_pips >= win_threshold ? pivot_short_count : 0)) / (pivot_long_count + pivot_short_count) * 100 : 50.0) : 0.0
-bounce_win_percentage := bounce_total_captures > 0 ? (bounce_long_count + bounce_short_count > 0 ? ((bounce_long_pips >= win_threshold ? bounce_long_count : 0) + (bounce_short_pips >= win_threshold ? bounce_short_count : 0)) / (bounce_long_count + bounce_short_count) * 100 : 50.0) : 0.0
-keltner_win_percentage := keltner_total_captures > 0 ? (keltner_long_count + keltner_short_count > 0 ? ((keltner_long_pips >= win_threshold ? keltner_long_count : 0) + (keltner_short_pips >= win_threshold ? keltner_short_count : 0)) / (keltner_long_count + keltner_short_count) * 100 : 50.0) : 0.0
+// FIXED: Calculate accurate win percentages based on individual trade results
+smp_win_percentage := (smp_wins + smp_losses) > 0 ? (smp_wins / (smp_wins + smp_losses)) * 100 : 0.0
+pivot_win_percentage := (pivot_wins + pivot_losses) > 0 ? (pivot_wins / (pivot_wins + pivot_losses)) * 100 : 0.0
+bounce_win_percentage := (bounce_wins + bounce_losses) > 0 ? (bounce_wins / (bounce_wins + bounce_losses)) * 100 : 0.0
+keltner_win_percentage := (keltner_wins + keltner_losses) > 0 ? (keltner_wins / (keltner_wins + keltner_losses)) * 100 : 0.0
 
 // ========================================== SYZYGY PIVOT ALERTS ======================================================
 

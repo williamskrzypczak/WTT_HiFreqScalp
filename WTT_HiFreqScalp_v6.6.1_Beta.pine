@@ -1840,7 +1840,7 @@ if show_table and (tableUpdateKey != lastTableUpdateKey)
         // Set pullback color based on detection status
         pullback_color = long_bounce_detected ? color.aqua : short_bounce_detected ? color.fuchsia : long_pullback_detected ? color.new(color.aqua, 50) : short_pullback_detected ? color.new(color.fuchsia, 50) : color.gray
         
-            // Calculate bars since Bounce signal (start counting from bar AFTER signal)
+        // Calculate bars since Bounce signal (start counting from bar AFTER signal)
     // Note: bars_display variables are now calculated in global scope
         
         // Highlight Bounce indicator name when signal is active (synchronized with alert condition)
@@ -2152,21 +2152,21 @@ if show_pip_capture_table
                 second_highest := bounce_win_rank_value
             if keltner_win_rank_value < highest_win and keltner_win_rank_value > second_highest
                 second_highest := keltner_win_rank_value
-            
+                
             // Assign rank 2
             if smp_win_rank_value == second_highest and smp_pip_rank != "1"
-                smp_pip_rank := "2"
-                smp_pip_rank_color := color.gray
+                    smp_pip_rank := "2"
+                    smp_pip_rank_color := color.gray
             if pivot_win_rank_value == second_highest and pivot_pip_rank != "1"
-                pivot_pip_rank := "2"
-                pivot_pip_rank_color := color.gray
+                    pivot_pip_rank := "2"
+                    pivot_pip_rank_color := color.gray
             if bounce_win_rank_value == second_highest and bounce_pip_rank != "1"
-                bounce_pip_rank := "2"
-                bounce_pip_rank_color := color.gray
+                    bounce_pip_rank := "2"
+                    bounce_pip_rank_color := color.gray
             if keltner_win_rank_value == second_highest and keltner_pip_rank != "1"
-                keltner_pip_rank := "2"
-                keltner_pip_rank_color := color.gray
-            
+                    keltner_pip_rank := "2"
+                    keltner_pip_rank_color := color.gray
+                
             // Find third highest (among remaining signals)
             float third_highest = -999.0
             if smp_win_rank_value < second_highest and smp_win_rank_value > third_highest
@@ -2177,34 +2177,34 @@ if show_pip_capture_table
                 third_highest := bounce_win_rank_value
             if keltner_win_rank_value < second_highest and keltner_win_rank_value > third_highest
                 third_highest := keltner_win_rank_value
-            
+                    
             // Assign rank 3
             if smp_win_rank_value == third_highest and smp_pip_rank != "1" and smp_pip_rank != "2"
-                smp_pip_rank := "3"
-                smp_pip_rank_color := color.orange
+                        smp_pip_rank := "3"
+                        smp_pip_rank_color := color.orange
             if pivot_win_rank_value == third_highest and pivot_pip_rank != "1" and pivot_pip_rank != "2"
-                pivot_pip_rank := "3"
-                pivot_pip_rank_color := color.orange
+                        pivot_pip_rank := "3"
+                        pivot_pip_rank_color := color.orange
             if bounce_win_rank_value == third_highest and bounce_pip_rank != "1" and bounce_pip_rank != "2"
-                bounce_pip_rank := "3"
-                bounce_pip_rank_color := color.orange
+                        bounce_pip_rank := "3"
+                        bounce_pip_rank_color := color.orange
             if keltner_win_rank_value == third_highest and keltner_pip_rank != "1" and keltner_pip_rank != "2"
-                keltner_pip_rank := "3"
-                keltner_pip_rank_color := color.orange
-            
+                        keltner_pip_rank := "3"
+                        keltner_pip_rank_color := color.orange
+                    
             // Assign rank 4 to remaining signals
-            if smp_pip_rank == ""
-                smp_pip_rank := "4"
-                smp_pip_rank_color := color.red
-            if pivot_pip_rank == ""
-                pivot_pip_rank := "4"
-                pivot_pip_rank_color := color.red
-            if bounce_pip_rank == ""
-                bounce_pip_rank := "4"
-                bounce_pip_rank_color := color.red
-            if keltner_pip_rank == ""
-                keltner_pip_rank := "4"
-                keltner_pip_rank_color := color.red
+                        if smp_pip_rank == ""
+                            smp_pip_rank := "4"
+                            smp_pip_rank_color := color.red
+                        if pivot_pip_rank == ""
+                            pivot_pip_rank := "4"
+                            pivot_pip_rank_color := color.red
+                        if bounce_pip_rank == ""
+                            bounce_pip_rank := "4"
+                            bounce_pip_rank_color := color.red
+                        if keltner_pip_rank == ""
+                            keltner_pip_rank := "4"
+                            keltner_pip_rank_color := color.red
 
     else
         // Not enough data for ranking

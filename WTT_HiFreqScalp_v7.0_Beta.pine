@@ -2,8 +2,10 @@
 // =====================================================================================================================
 //
 // WTT_HiFreqScalp © William Skrzypczak Waverider Trading Technologies
-// Revision: v6.6 Beta (Fixed Three Bar Stop Strategy table ranking system and optimized performance)
-// Next Version: v6.7 Beta
+// Revision: v7.0 Beta (Major version update with Keltner channel color optimization and performance enhancements)
+// Performance Optimizations: Reduced table updates, optimized array sizes, conditional calculations, performance mode
+// Color Updates: Changed Keltner channel lines to magenta/fuchsia for better visibility
+// Next Version: v7.1 Beta
 //
 // =====================================================================================================================
 //
@@ -34,7 +36,7 @@
 // enabling automated alerting for traders. User options allow toggling the display of individual EMAs and the RSI/ADX -
 // monitor table for a tailored charting experience. -------------------------------------------------------------------
 
-indicator("WTT_HiFreqScalp_V5.2Beta", overlay=true)
+indicator("WTT_HiFreqScalp_v7.0_Beta", overlay=true)
 
 // ======================================== INPUT GROUPS ===============================================================
 // Organizing inputs into logical groups for better UI experience ------------------------------------------------------
@@ -1216,8 +1218,8 @@ plot(middleEMA, color=color.new(color.silver, 100), title="Middle EMA", linewidt
 plot(ema2, color=color.new(color.purple, 100), title="Slow EMA", linewidth=4)
 
 // Plot Keltner Channels (always plot, but change color based on market state) ----------------------------
-// Use silver color to contrast with teal/blue, black when trending (invisible)
-keltner_border_color = show_keltner ? color.new(color.silver, 10) : color.new(color.black, 100)
+// Use magenta/fuchsia color for excellent contrast and visibility
+keltner_border_color = show_keltner ? color.new(color.fuchsia, 10) : color.new(color.black, 100)
 
 // Create Keltner Channel boundaries
 plot(keltner_upper, color=keltner_border_color, title="Keltner Upper", linewidth=2, style=plot.style_line)
